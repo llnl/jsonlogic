@@ -56,7 +56,8 @@ _jl_or = Operation("or", 2)  # single |
 #     # return Expression("in", o, self)
 
 # # to be modeled after Pandas' str.contains
-_jl_contains = Operation("in", 2)
+_jl_contains = Operation("contains", 2)
+_jl_isin = Operation("in", 2)
 _jl_regex = Operation("regex", 2)
 
 # string and array concatenation
@@ -85,6 +86,7 @@ jl_operations: dict[str, Operation] = {
     "__or__": _jl_or,
     "__invert__": _jl_not,
     "contains": _jl_contains,
+    "isin": _jl_isin,
     "regex": _jl_regex,
     "cat": _jl_cat,
 }

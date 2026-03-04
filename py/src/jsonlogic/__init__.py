@@ -84,6 +84,14 @@ class Expression(Operand):
         self.on = tuple(Literal(o) if not isinstance(o, Operand) else o for o in on)
 
     def _prepare(self):
+        if self.op.op == "contains":
+            o2 = self.on[0]
+            o2prep = o2._prepare() if isinstance(o2, Operand) else o2
+            o1prep = self.o1._prepare() if isinstance(self.o1, Operand) else self.o1
+            return {
+                "in": [o2prep, o1prep]
+            }
+
         return {
             str(self.op): [self.o1._prepare()]
             + list(x._prepare() if isinstance(x, Operand) else x for x in self.on)
