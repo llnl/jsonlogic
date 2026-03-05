@@ -29,7 +29,7 @@ set(BOOST_URL
     CACHE STRING "URL to fetch Boost tarball")
 
 
-set(BOOST_INCLUDE_LIBRARIES json lexical_cast range)
+set(BOOST_INCLUDE_LIBRARIES json lexical_cast range regex)
 set(BUILD_SHARED_LIBS ON)
 FetchContent_Declare(
     Boost
@@ -45,7 +45,7 @@ add_library(jsonlogic SHARED ${CMAKE_CURRENT_SOURCE_DIR}/src/logic.cc)
 target_include_directories(jsonlogic PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_options(jsonlogic PRIVATE -Wall -Wextra -pedantic)
 
-target_link_libraries(jsonlogic LINK_PUBLIC Boost::json)
+target_link_libraries(jsonlogic LINK_PUBLIC Boost::json Boost::regex)
 
 set_target_properties(jsonlogic PROPERTIES PUBLIC_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/include/jsonlogic/logic.hpp)
 set_target_properties(jsonlogic PROPERTIES POSITION_INDEPENDENT_CODE ON)

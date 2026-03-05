@@ -1,0 +1,1 @@
+{"rule":{"regex":["^hello",{"var":"s"}]},"data":{"s":"world hello"},"expected":false,"description":"regex: prefix match fails when pattern not at start"}

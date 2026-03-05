@@ -1,0 +1,1 @@
+{"rule":{"regex":["world$",{"var":"s"}]},"data":{"s":"hello world"},"expected":true,"description":"regex: suffix anchor match"}
