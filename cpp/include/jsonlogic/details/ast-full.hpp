@@ -408,8 +408,20 @@ struct error : expr {
 // jsonlogic extensions
 
 #if WITH_JSON_LOGIC_CPP_EXTENSIONS
+#include <boost/regex.hpp>
+#include <optional>
+
 struct regex_match : oper_n<2> {
   void accept(visitor &) const final;
+
+  // Pre-compile the pattern at parse time (called by mk_regex_opt when
+  // the pattern arg is a string literal). Absent = compile at eval time.
+  void set_compiled(std::string_view pattern);
+  bool has_compiled() const { return compiled_pattern.has_value(); }
+  const boost::regex &compiled() const { return *compiled_pattern; }
+
+private:
+  std::optional<boost::regex> compiled_pattern;
 };
 #endif /* WITH_JSON_LOGIC_CPP_EXTENSIONS */
 

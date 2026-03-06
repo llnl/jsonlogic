@@ -1,0 +1,1 @@
+{"rule":{"regex":["HELLO",{"var":"s"}]},"data":{"s":"hello"},"expected":false,"description":"regex: case-sensitive match fails"}

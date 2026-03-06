@@ -15,7 +15,7 @@
 #include <ranges>
 
 #if WITH_JSON_LOGIC_CPP_EXTENSIONS
-#include <regex>
+#include <boost/regex.hpp>
 #endif /* WITH_JSON_LOGIC_CPP_EXTENSIONS */
 
 // 3rd party headers
@@ -643,6 +643,12 @@ void error::accept(visitor &v) const { v.visit(*this); }
 
 #if WITH_JSON_LOGIC_CPP_EXTENSIONS
 void regex_match::accept(visitor &v) const { v.visit(*this); }
+
+void regex_match::set_compiled(std::string_view pattern) {
+  compiled_pattern = boost::regex(
+    pattern.data(), pattern.size(),
+    boost::regex_constants::ECMAScript | boost::regex_constants::optimize);
+}
 #endif /* WITH_JSON_LOGIC_CPP_EXTENSIONS */
 
 #if ENABLE_OPTIMIZATIONS
@@ -861,6 +867,19 @@ expr &mk_variable(const json::object &n, variable_map &m) {
   return v;
 }
 
+#if WITH_JSON_LOGIC_CPP_EXTENSIONS
+/// Creates a regex_match node, pre-compiling the pattern when the first
+/// argument is a string literal (the common case for billion-row workloads).
+expr &mk_regex_opt(const json::object &n, variable_map &m) {
+  regex_match &res = mk_operator_<regex_match>(n, m);
+
+  if (const string_value *sv = may_down_cast<string_value>(res.operand(0)))
+    res.set_compiled(std::string_view(sv->value()));
+
+  return res;
+}
+#endif /* WITH_JSON_LOGIC_CPP_EXTENSIONS */
+
 array &mk_array(const json::array &children, variable_map &m) {
   array &res = mk_array();
 
@@ -925,7 +944,7 @@ any_expr translate_internal(const json::value& n, variable_map &varmap) {
       {"missing_some", &mk_missing<missing_some>},
 #if WITH_JSON_LOGIC_CPP_EXTENSIONS
       /// extensions
-      {"regex", &mk_operator<regex_match>},
+      {"regex", &mk_regex_opt},
 #endif /* WITH_JSON_LOGIC_CPP_EXTENSIONS */
   };
 
@@ -2496,20 +2515,8 @@ struct operator_impl<membership> : string_operator_non_destructive {
 };
 
 
-#if WITH_JSON_LOGIC_CPP_EXTENSIONS
-template <>
-struct operator_impl<regex_match>
-    : string_operator_non_destructive  // \todo the conversion rules differ
-{
-  using string_operator_non_destructive::result_type;
-
-  result_type operator()(const managed_string_view& lhs, const managed_string_view& rhs) const {
-    std::regex rgx(lhs.c_str(), lhs.size());
-
-    return to_value(std::regex_search(rhs.begin(), rhs.end(), rgx));
-  }
-};
-#endif /* WITH_JSON_LOGIC_CPP_EXTENSIONS */
+// operator_impl<regex_match> removed: logic is handled directly in
+// evaluator::visit(const regex_match &) to support the pre-compiled fast path.
 
 template <>
 struct operator_impl<merge> : array_operator {
@@ -2881,7 +2888,22 @@ void evaluator::visit(const cat &n) {
 
 #if WITH_JSON_LOGIC_CPP_EXTENSIONS
 void evaluator::visit(const regex_match &n) {
-  binary(n, operator_impl<regex_match>{});
+  if (n.has_compiled()) {
+    // Fast path: pattern was pre-compiled at parse time.
+    // operand(0) is the pattern literal (ignored here); operand(1) is the value.
+    any_value val = eval(n.operand(1));
+    const managed_string_view *sv = std::get_if<managed_string_view>(&val);
+    calcres = (sv != nullptr) && boost::regex_search(sv->begin(), sv->end(), n.compiled());
+  } else {
+    // Slow path: dynamic pattern — compile at evaluation time.
+    any_value lhs = eval(n.operand(0));
+    any_value rhs = eval(n.operand(1));
+    const managed_string_view *pattern = std::get_if<managed_string_view>(&lhs);
+    const managed_string_view *subject = std::get_if<managed_string_view>(&rhs);
+    if (pattern == nullptr || subject == nullptr) { calcres = false; return; }
+    boost::regex rgx(pattern->data(), pattern->size());
+    calcres = boost::regex_search(subject->begin(), subject->end(), rgx);
+  }
 }
 #endif /* WITH_JSON_LOGIC_CPP_EXTENSIONS */
 
