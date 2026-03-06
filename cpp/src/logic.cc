@@ -14,9 +14,9 @@
 #include <span>
 #include <ranges>
 
-#if WITH_JSON_LOGIC_CPP_EXTENSIONS
+#if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
 #include <boost/regex.hpp>
-#endif /* WITH_JSON_LOGIC_CPP_EXTENSIONS */
+#endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
 
 // 3rd party headers
 #include <boost/json.hpp>
@@ -641,7 +641,7 @@ void array_value::accept(visitor &v) const { v.visit(*this); }
 
 void error::accept(visitor &v) const { v.visit(*this); }
 
-#if WITH_JSON_LOGIC_CPP_EXTENSIONS
+#if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
 void regex_match::accept(visitor &v) const { v.visit(*this); }
 
 void regex_match::set_compiled(std::string_view pattern) {
@@ -649,7 +649,7 @@ void regex_match::set_compiled(std::string_view pattern) {
     pattern.data(), pattern.size(),
     boost::regex_constants::ECMAScript | boost::regex_constants::optimize);
 }
-#endif /* WITH_JSON_LOGIC_CPP_EXTENSIONS */
+#endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
 
 #if ENABLE_OPTIMIZATIONS
 void opt_membership_array::accept(visitor &v) const { v.visit(*this); }
@@ -728,10 +728,10 @@ struct forwarding_visitor : visitor {
 
   void visit(const error &n) override { visit(up_cast<expr>(n)); }
 
-#if WITH_JSON_LOGIC_CPP_EXTENSIONS
+#if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
   // extensions
   void visit(const regex_match &n) override { visit(up_cast<oper>(n)); }
-#endif /* WITH_JSON_LOGIC_CPP_EXTENSIONS */
+#endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
 
 #if ENABLE_OPTIMIZATIONS
   // optimizations
@@ -867,7 +867,7 @@ expr &mk_variable(const json::object &n, variable_map &m) {
   return v;
 }
 
-#if WITH_JSON_LOGIC_CPP_EXTENSIONS
+#if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
 /// Creates a regex_match node, pre-compiling the pattern when the first
 /// argument is a string literal (the common case for billion-row workloads).
 expr &mk_regex_opt(const json::object &n, variable_map &m) {
@@ -878,7 +878,7 @@ expr &mk_regex_opt(const json::object &n, variable_map &m) {
 
   return res;
 }
-#endif /* WITH_JSON_LOGIC_CPP_EXTENSIONS */
+#endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
 
 array &mk_array(const json::array &children, variable_map &m) {
   array &res = mk_array();
@@ -936,16 +936,16 @@ any_expr translate_internal(const json::value& n, variable_map &varmap) {
       {"none", &mk_operator<none>},
       {"some", &mk_operator<some>},
       {"merge", &mk_operator<merge>},
-      {"in", &mk_membership_opt},      
+      {"in", &mk_membership_opt},
       {"cat", &mk_operator<cat>},
       {"log", &mk_operator<log>},
       {"var", &mk_variable},
       {"missing", &mk_missing<missing>},
       {"missing_some", &mk_missing<missing_some>},
-#if WITH_JSON_LOGIC_CPP_EXTENSIONS
+#if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
       /// extensions
       {"regex", &mk_regex_opt},
-#endif /* WITH_JSON_LOGIC_CPP_EXTENSIONS */
+#endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
   };
 
   expr *res = nullptr;
@@ -2587,9 +2587,9 @@ struct evaluator : forwarding_visitor {
 
   void visit(const error &) final;
 
-#if WITH_JSON_LOGIC_CPP_EXTENSIONS
+#if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
   void visit(const regex_match &) final;
-#endif /* WITH_JSON_LOGIC_CPP_EXTENSIONS */
+#endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
 #if ENABLE_OPTIMIZATIONS
   void visit(const opt_membership_array &) final;
 #endif /* ENABLE_OPTIMIZATIONS */
@@ -2886,7 +2886,7 @@ void evaluator::visit(const cat &n) {
   reduce_sequence(n, operator_impl<cat>{});
 }
 
-#if WITH_JSON_LOGIC_CPP_EXTENSIONS
+#if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
 void evaluator::visit(const regex_match &n) {
   if (n.has_compiled()) {
     // Fast path: pattern was pre-compiled at parse time.
@@ -2905,7 +2905,7 @@ void evaluator::visit(const regex_match &n) {
     calcres = boost::regex_search(subject->begin(), subject->end(), rgx);
   }
 }
-#endif /* WITH_JSON_LOGIC_CPP_EXTENSIONS */
+#endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
 
 void evaluator::visit(const membership &n) {
   assert(n.num_evaluated_operands() >= 1);

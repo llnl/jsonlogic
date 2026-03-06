@@ -407,7 +407,7 @@ struct error : expr {
 //
 // jsonlogic extensions
 
-#if WITH_JSON_LOGIC_CPP_EXTENSIONS
+#if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
 #include <boost/regex.hpp>
 #include <optional>
 
@@ -423,7 +423,7 @@ struct regex_match : oper_n<2> {
 private:
   std::optional<boost::regex> compiled_pattern;
 };
-#endif /* WITH_JSON_LOGIC_CPP_EXTENSIONS */
+#endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
 
 // visitor
 struct visitor {
@@ -481,10 +481,10 @@ struct visitor {
 
   virtual void visit(const error &) = 0;
 
-#if WITH_JSON_LOGIC_CPP_EXTENSIONS
+#if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
   // extensions
   virtual void visit(const regex_match &) = 0;
-#endif /* WITH_JSON_LOGIC_CPP_EXTENSIONS */
+#endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
 
 #if ENABLE_OPTIMIZATIONS
   // extensions
@@ -571,10 +571,10 @@ struct generic_dispatcher : visitor {
 
   void visit(const error &n) final { res = apply(n, &n); }
 
-#if WITH_JSON_LOGIC_CPP_EXTENSIONS
+#if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
   // extensions
   void visit(const regex_match &n) final { res = apply(n, &n); }
-#endif /* WITH_JSON_LOGIC_CPP_EXTENSIONS */
+#endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
 
 #if ENABLE_OPTIMIZATIONS
   void visit(const opt_membership_array &n) final { res = apply(n, &n); }
