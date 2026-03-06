@@ -5,10 +5,10 @@
 
 #include "managed_string_view.hpp"
 
-#if !defined(WITH_JSONLOGIC_EXTENSIONS)
+#if !defined(WITH_JSONLOGIC_CUSTOM_EXTENSIONS)
 // turn on to enable regex matching
-#define WITH_JSONLOGIC_EXTENSIONS 1
-#endif /* !defined(WITH_JSONLOGIC_EXTENSIONS) */
+#define WITH_JSONLOGIC_CUSTOM_EXTENSIONS 1
+#endif /* !defined(WITH_JSONLOGIC_CUSTOM_EXTENSIONS) */
 
 // TODO: evaluate whether these extension guards are still necessary given
 // that Boost is already a required dependency for boost::json.
