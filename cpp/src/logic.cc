@@ -4,15 +4,15 @@
 
 // standard headers
 #include <algorithm>
+#include <charconv>
 #include <cstdint>
 #include <exception>
 #include <iostream>
 #include <limits>
 #include <numeric>
-#include <string>
-#include <charconv>
-#include <span>
 #include <ranges>
+#include <span>
+#include <string>
 
 #if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
 #include <boost/regex.hpp>
@@ -29,29 +29,23 @@ namespace {
 CXX_MAYBE_UNUSED constexpr bool DEBUG_OUTPUT = false;
 constexpr int COMPUTED_VARIABLE_NAME = -1;
 
-
-}  // namespace
-
-
+} // namespace
 
 namespace jsonlogic {
 
-
-
 namespace {
 CXX_NORETURN
-inline
-void unsupported() {
+inline void unsupported() {
   throw std::logic_error("functionality not yet implemented");
 }
 
 CXX_NORETURN
-inline
-void throw_type_error() { throw type_error("typing error"); }
+inline void throw_type_error() { throw type_error("typing error"); }
 
 CXX_NORETURN
-inline
-void implementation_error() { throw std::logic_error("implementation error"); }
+inline void implementation_error() {
+  throw std::logic_error("implementation error");
+}
 
 template <class Error = std::runtime_error, class T>
 T &deref(T *p, const char *msg = "assertion failed") {
@@ -85,30 +79,23 @@ const T &deref(const std::unique_ptr<T> &p,
 }
 
 //~ template <class T> T &up_cast(T &n) { return n; }
-template <class T>
-const T &up_cast(const T &n) {
-  return n;
-}
+template <class T> const T &up_cast(const T &n) { return n; }
 
-template <class T>
-struct down_caster_internal {
+template <class T> struct down_caster_internal {
   T *operator()(const expr &) const { return nullptr; }
 
   T *operator()(const T &o) const { return &o; }
 };
 
-template <class T>
-const T *may_down_cast(const expr &e) {
+template <class T> const T *may_down_cast(const expr &e) {
   return generic_visit(down_caster_internal<T>{}, &e);
 }
 
-template <class T>
-T *may_down_cast(expr &e) {
-  return dynamic_cast<T *>(&e);  // \todo replace dynamic_cast
+template <class T> T *may_down_cast(expr &e) {
+  return dynamic_cast<T *>(&e); // \todo replace dynamic_cast
 }
 
-template <class T>
-const T &down_cast(const expr &e) {
+template <class T> const T &down_cast(const expr &e) {
   if (T *casted = may_down_cast<T>(e)) {
     CXX_LIKELY;
     return *casted;
@@ -117,8 +104,7 @@ const T &down_cast(const expr &e) {
   throw_type_error();
 }
 
-template <class T>
-T &down_cast(expr &e) {
+template <class T> T &down_cast(expr &e) {
   if (T *casted = may_down_cast<T>(e)) {
     CXX_LIKELY;
     return *casted;
@@ -145,97 +131,92 @@ enum /* anonymous */ {
 };
 
 static_assert(std::variant_size_v<value_variant_base> == 8);
-static_assert(std::is_same_v<std::monostate,
-                             std::variant_alternative_t<mono_variant, value_variant_base> >);
-static_assert(std::is_same_v<std::nullptr_t,
-                             std::variant_alternative_t<null_variant, value_variant_base> >);
-static_assert(std::is_same_v<bool,
-                             std::variant_alternative_t<bool_variant, value_variant_base> >);
-static_assert(std::is_same_v<std::int64_t,
-                             std::variant_alternative_t<sint_variant, value_variant_base> >);
-static_assert(std::is_same_v<std::uint64_t,
-                             std::variant_alternative_t<uint_variant, value_variant_base> >);
-static_assert(std::is_same_v<double,
-                             std::variant_alternative_t<real_variant, value_variant_base> >);
-static_assert(std::is_same_v<managed_string_view,
-                             std::variant_alternative_t<strv_variant, value_variant_base> >);
-static_assert(std::is_same_v<array_value const*,
-                             std::variant_alternative_t<sequ_variant, value_variant_base> >);
+static_assert(std::is_same_v<
+              std::monostate,
+              std::variant_alternative_t<mono_variant, value_variant_base>>);
+static_assert(std::is_same_v<
+              std::nullptr_t,
+              std::variant_alternative_t<null_variant, value_variant_base>>);
+static_assert(
+    std::is_same_v<
+        bool, std::variant_alternative_t<bool_variant, value_variant_base>>);
+static_assert(std::is_same_v<
+              std::int64_t,
+              std::variant_alternative_t<sint_variant, value_variant_base>>);
+static_assert(std::is_same_v<
+              std::uint64_t,
+              std::variant_alternative_t<uint_variant, value_variant_base>>);
+static_assert(
+    std::is_same_v<
+        double, std::variant_alternative_t<real_variant, value_variant_base>>);
+static_assert(std::is_same_v<
+              managed_string_view,
+              std::variant_alternative_t<strv_variant, value_variant_base>>);
+static_assert(std::is_same_v<
+              array_value const *,
+              std::variant_alternative_t<sequ_variant, value_variant_base>>);
 
-bool null_equivalent(value_variant val)
-{
+bool null_equivalent(value_variant val) {
   bool res = false;
 
-  switch (val.index())
-  {
-    case mono_variant:
-    case null_variant:
-      res = true;
-      break;
+  switch (val.index()) {
+  case mono_variant:
+  case null_variant:
+    res = true;
+    break;
 
-    default:
-      CXX_LIKELY;
+  default:
+    CXX_LIKELY;
   }
 
   return res;
 }
 
-
 template <class T>
-bool
-stricteq(const value_variant& lhs, const value_variant& rhs)
-try
-{
+bool stricteq(const value_variant &lhs, const value_variant &rhs) try {
   return std::get<T>(lhs) == std::get<T>(rhs);
-}
-catch (...)
-{
+} catch (...) {
   return false;
 }
 
 // using variant_span = std::span<value_variant>;
 
-using variant_span_base = std::tuple<std::vector<value_variant>::const_iterator, std::vector<value_variant>::const_iterator>;
+using variant_span_base =
+    std::tuple<std::vector<value_variant>::const_iterator,
+               std::vector<value_variant>::const_iterator>;
 
-struct variant_span : variant_span_base
-{
+struct variant_span : variant_span_base {
   using base = variant_span_base;
   using base::base;
 
-  std::vector<value_variant>::const_iterator begin() const { return std::get<0>(*this); }
-  std::vector<value_variant>::const_iterator end()   const { return std::get<1>(*this); }
-  std::size_t                                size()  const { return std::distance(begin(), end()); }
+  std::vector<value_variant>::const_iterator begin() const {
+    return std::get<0>(*this);
+  }
+  std::vector<value_variant>::const_iterator end() const {
+    return std::get<1>(*this);
+  }
+  std::size_t size() const { return std::distance(begin(), end()); }
 };
 
-
-managed_string_view
-element_range(const value_variant& val, const std::string_view&)
-{
+managed_string_view element_range(const value_variant &val,
+                                  const std::string_view &) {
   return std::get<managed_string_view>(val);
 }
 
-variant_span
-element_range(const std::vector<value_variant>& vec)
-{
-  return { vec.begin(), vec.end() };
+variant_span element_range(const std::vector<value_variant> &vec) {
+  return {vec.begin(), vec.end()};
 }
 
-variant_span
-element_range(const array_value* arr)
-{
+variant_span element_range(const array_value *arr) {
   return element_range(deref(arr).value());
 }
 
-variant_span
-element_range(const value_variant& val, const array_value*)
-{
-  return element_range(std::get<array_value const*>(val));
+variant_span element_range(const value_variant &val, const array_value *) {
+  return element_range(std::get<array_value const *>(val));
 }
 
 template <class RangeT>
-bool
-stricteq_range(const value_variant& lhs, const value_variant& rhs)
-{
+bool stricteq_range(const value_variant &lhs, const value_variant &rhs) {
   if (rhs.index() != lhs.index())
     return false;
 
@@ -250,19 +231,16 @@ stricteq_range(const value_variant& lhs, const value_variant& rhs)
   return std::mismatch(ll.begin(), lhslim, rr.begin()).first == lhslim;
 }
 
-bool inteq(std::int64_t x, std::uint64_t y)
-{
-  bool const y_within_int_range = (y <= std::uint64_t(std::numeric_limits<std::int64_t>::max()));
+bool inteq(std::int64_t x, std::uint64_t y) {
+  bool const y_within_int_range =
+      (y <= std::uint64_t(std::numeric_limits<std::int64_t>::max()));
 
   return y_within_int_range & (x == std::int64_t(y));
 }
 
 template <class T>
-bool
-inteq(const value_variant& lhs, const value_variant& rhs)
-{
-  if (rhs.index() == lhs.index())
-  {
+bool inteq(const value_variant &lhs, const value_variant &rhs) {
+  if (rhs.index() == lhs.index()) {
     CXX_LIKELY;
     return std::get<T>(lhs) == std::get<T>(rhs);
   }
@@ -276,269 +254,242 @@ inteq(const value_variant& lhs, const value_variant& rhs)
   return false;
 }
 
+bool operator==(const value_variant &lhs, const value_variant &rhs) {
+  bool res = false;
 
-bool operator==(const value_variant& lhs, const value_variant& rhs)
-{
-  bool       res = false;
+  switch (lhs.index()) {
+  case mono_variant:
+  case null_variant:
+    res = lhs.index() == rhs.index();
+    break;
 
-  switch (lhs.index())
-  {
-    case mono_variant:
-    case null_variant:
-      res = lhs.index() == rhs.index();
-      break;
+  case bool_variant:
+    res = stricteq<bool>(lhs, rhs);
+    break;
 
-    case bool_variant:
-      res = stricteq<bool>(lhs, rhs);
-      break;
+  case sint_variant:
+    res = inteq<std::int64_t>(lhs, rhs);
+    break;
 
-    case sint_variant:
-      res = inteq<std::int64_t>(lhs, rhs);
-      break;
+  case uint_variant:
+    res = inteq<std::uint64_t>(lhs, rhs);
+    break;
 
-    case uint_variant:
-      res = inteq<std::uint64_t>(lhs, rhs);
-      break;
+  case real_variant:
+    res = stricteq<double>(lhs, rhs);
+    break;
 
-    case real_variant:
-      res = stricteq<double>(lhs, rhs);
-      break;
+  case strv_variant:
+    res = stricteq_range<std::string_view>(lhs, rhs);
+    break;
 
-    case strv_variant:
-      res = stricteq_range<std::string_view>(lhs, rhs);
-      break;
+  case sequ_variant:
+    res = stricteq_range<array_value const *>(lhs, rhs);
+    break;
 
-    case sequ_variant:
-      res = stricteq_range<array_value const*>(lhs, rhs);
-      break;
-
-    default:
-      throw_type_error();
+  default:
+    throw_type_error();
   }
 
   return res;
 }
 
-
-std::size_t leftRotate(std::size_t n, std::size_t d) { //rotate n by d bits
-     return (n << d)|(n >> (sizeof(n)*CHAR_BIT - d));
+std::size_t leftRotate(std::size_t n, std::size_t d) { // rotate n by d bits
+  return (n << d) | (n >> (sizeof(n) * CHAR_BIT - d));
 }
 
-}
-
+} // namespace jsonlogic
 
 // overload std::hash for jsonlogic types
-namespace std 
-{  
-  size_t 
-  hash<jsonlogic::array_value>::operator()(const jsonlogic::array_value& v) const {
-    auto values = v.value() | std::views::transform(std::hash<jsonlogic::value_variant>{});        
-    
-    // C++23: return std::ranges::fold_left(values, size_t(0), std::plus<size_t>{});
-    return std::accumulate(values.begin(), values.end(), size_t(0), std::plus<size_t>{});
+namespace std {
+size_t hash<jsonlogic::array_value>::operator()(
+    const jsonlogic::array_value &v) const {
+  auto values =
+      v.value() | std::views::transform(std::hash<jsonlogic::value_variant>{});
+
+  // C++23: return std::ranges::fold_left(values, size_t(0),
+  // std::plus<size_t>{});
+  return std::accumulate(values.begin(), values.end(), size_t(0),
+                         std::plus<size_t>{});
+}
+
+size_t hash<jsonlogic::value_variant_base>::operator()(
+    const jsonlogic::value_variant_base &v) const {
+  // Use the variant index as part of the hash to distinguish between
+  // different types that might hash to the same value
+  size_t const index_hash = hash<size_t>{}(v.index());
+  size_t value_hash = 0;
+
+  switch (v.index()) {
+  case jsonlogic::mono_variant:
+  case jsonlogic::null_variant:
+    // identified through their index type
+    break;
+
+  case jsonlogic::bool_variant:
+    value_hash = std::hash<bool>{}(std::get<bool>(v));
+    break;
+
+  case jsonlogic::sint_variant:
+    value_hash = std::hash<int64_t>{}(std::get<int64_t>(v));
+    break;
+
+  case jsonlogic::uint_variant:
+    value_hash = std::hash<uint64_t>{}(std::get<uint64_t>(v));
+    break;
+
+  case jsonlogic::real_variant:
+    value_hash = std::hash<double>{}(std::get<double>(v));
+    break;
+
+  case jsonlogic::strv_variant:
+    value_hash =
+        std::hash<string_view>{}(std::get<jsonlogic::managed_string_view>(v));
+    break;
+
+  case jsonlogic::sequ_variant:
+    value_hash = std::hash<jsonlogic::array_value>{}(
+        *std::get<jsonlogic::array_value const *>(v));
+    break;
+
+  default:
+    jsonlogic::implementation_error();
   }
-  
-  size_t 
-  hash<jsonlogic::value_variant_base>::operator()(const jsonlogic::value_variant_base& v) const {
-    // Use the variant index as part of the hash to distinguish between
-    // different types that might hash to the same value
-    size_t const index_hash = hash<size_t>{}(v.index());
-    size_t       value_hash = 0;
-    
-    switch (v.index()) {
-      case jsonlogic::mono_variant: 
-      case jsonlogic::null_variant: 
-        // identified through their index type
-        break;
-  
-      case jsonlogic::bool_variant: 
-        value_hash = std::hash<bool>{}(std::get<bool>(v));
-        break;
-  
-      case jsonlogic::sint_variant: 
-        value_hash = std::hash<int64_t>{}(std::get<int64_t>(v));
-        break;
-      
-      case jsonlogic::uint_variant: 
-        value_hash = std::hash<uint64_t>{}(std::get<uint64_t>(v));
-        break;
-  
-      case jsonlogic::real_variant: 
-        value_hash = std::hash<double>{}(std::get<double>(v));
-        break;
-  
-      case jsonlogic::strv_variant: 
-        value_hash = std::hash<string_view>{}(std::get<jsonlogic::managed_string_view>(v));
-        break;
-  
-      case jsonlogic::sequ_variant: 
-        value_hash = std::hash<jsonlogic::array_value>{}(*std::get<jsonlogic::array_value const*>(v));
-        break;
-  
-      default:
-        jsonlogic::implementation_error();
-    }
-    
-    return index_hash + jsonlogic::leftRotate(value_hash, 1);
-  }
-  
-  size_t 
-  hash<jsonlogic::value_variant>::operator()(const jsonlogic::value_variant& v) const {
-    return std::hash<jsonlogic::value_variant_base>{}(v);
-  }
+
+  return index_hash + jsonlogic::leftRotate(value_hash, 1);
+}
+
+size_t hash<jsonlogic::value_variant>::operator()(
+    const jsonlogic::value_variant &v) const {
+  return std::hash<jsonlogic::value_variant_base>{}(v);
+}
 } // namespace std
 
+namespace jsonlogic {
+namespace {
+/// functor testing if a jsonlogic expression can be converted to a variant
+/// representation.
+struct convertible_to_value_variant {
+  auto operator()(const expr &) const -> bool { return false; }
 
-namespace jsonlogic
-{
-namespace
-{  
-  /// functor testing if a jsonlogic expression can be converted to a variant representation.
-  struct convertible_to_value_variant
-  {
-    auto operator()(const expr &) const -> bool { return false; }
-  
-    template <class T>  
-    auto operator()(const T &) const -> decltype(std::declval<T>().to_variant(), bool{}) {
-      return true;
-    }
-  };
-  
-  /// returns true iff e can be converted to a value_variant 
-  /// (without deep analysis or constant folding).
-  bool not_convertible_to_value_variant(const any_expr& e)
-  {
-    return !generic_visit(convertible_to_value_variant{}, e.get());
+  template <class T>
+  auto operator()(const T &) const
+      -> decltype(std::declval<T>().to_variant(), bool{}) {
+    return true;
   }
-  
-  /// functor converting jsonlogic expression a variant representation.
-  /// \details
-  ///   the functor throws an std::logic_error if the conversion cannot be performed.
-  struct value_variant_conversion
-  {
-    CXX_NORETURN
-    auto operator()(const expr &) const -> value_variant
-    { 
-      implementation_error(); 
-    }
-  
-    template <class T>  
-    auto operator()(const T &o) const -> decltype(std::declval<T>().to_variant(), value_variant{}) const {
-      return o.to_variant();
-    }
-  };
-  
-  /// returns the value_variant in \p e, or throws an exception if the
-  ///   expression does not have value_variant representation.
-  value_variant as_value_variant(const any_expr& e)
-  {
-    return generic_visit(value_variant_conversion{}, e.get());
-  }
-  
-  /// converts an array in \p e to an unordered_set
-  ///   for more efficient lookup. Returns an empty set if the
-  ///   conversion is not possible, either due to \p e not
-  ///   representing an array (i.e., a string), or by the 
-  ///   array members not being constant.
-  /// \param  e a json_logic expression
-  /// \result a set with value_variant if all elements in e's array
-  ///         are convertible to value_variant.
-  std::unordered_set<value_variant> 
-  try_static_set(const any_expr& e)
-  {
-    const array* arr = may_down_cast<array>(deref(e.get()));
-    if (arr == nullptr)
-      return {};
-      
-    const oper::container_type& elems = arr->operands();
-    auto const beg = elems.begin();
-    auto const lim = elems.end();
-    
-    if (auto pos = std::find_if(beg, lim, not_convertible_to_value_variant); pos != lim)
-      return {};
-      
-    auto values = elems | std::views::transform(as_value_variant);
-    
-    return std::unordered_set<value_variant>(values.begin(), values.end());
-  }
-  
-  array_value& mk_array_value(std::vector<any_value> elems = {});
+};
 
-  void delete_array(value_variant_base& val)
-  {
-    if (val.index() == sequ_variant)
-    {
-      CXX_UNLIKELY;
-      delete std::get<array_value const*>(val);
-    }
+/// returns true iff e can be converted to a value_variant
+/// (without deep analysis or constant folding).
+bool not_convertible_to_value_variant(const any_expr &e) {
+  return !generic_visit(convertible_to_value_variant{}, e.get());
+}
+
+/// functor converting jsonlogic expression a variant representation.
+/// \details
+///   the functor throws an std::logic_error if the conversion cannot be
+///   performed.
+struct value_variant_conversion {
+  CXX_NORETURN
+  auto operator()(const expr &) const -> value_variant {
+    implementation_error();
   }
 
-  void copy_array(value_variant_base& val)
-  {
-    if (val.index() == sequ_variant)
-    {
-      CXX_UNLIKELY;
-      val = std::get<array_value const*>(val)->copy();
-    }
+  template <class T>
+  auto operator()(const T &o) const
+      -> decltype(std::declval<T>().to_variant(), value_variant{}) const {
+    return o.to_variant();
   }
+};
 
-  void invalidate_array(value_variant_base& val)
-  {
-    if (val.index() == sequ_variant)
-    {
-      CXX_UNLIKELY;
-      val = std::monostate{};
-    }
+/// returns the value_variant in \p e, or throws an exception if the
+///   expression does not have value_variant representation.
+value_variant as_value_variant(const any_expr &e) {
+  return generic_visit(value_variant_conversion{}, e.get());
+}
+
+/// converts an array in \p e to an unordered_set
+///   for more efficient lookup. Returns an empty set if the
+///   conversion is not possible, either due to \p e not
+///   representing an array (i.e., a string), or by the
+///   array members not being constant.
+/// \param  e a json_logic expression
+/// \result a set with value_variant if all elements in e's array
+///         are convertible to value_variant.
+std::unordered_set<value_variant> try_static_set(const any_expr &e) {
+  const array *arr = may_down_cast<array>(deref(e.get()));
+  if (arr == nullptr)
+    return {};
+
+  const oper::container_type &elems = arr->operands();
+  auto const beg = elems.begin();
+  auto const lim = elems.end();
+
+  if (auto pos = std::find_if(beg, lim, not_convertible_to_value_variant);
+      pos != lim)
+    return {};
+
+  auto values = elems | std::views::transform(as_value_variant);
+
+  return std::unordered_set<value_variant>(values.begin(), values.end());
+}
+
+array_value &mk_array_value(std::vector<any_value> elems = {});
+
+void delete_array(value_variant_base &val) {
+  if (val.index() == sequ_variant) {
+    CXX_UNLIKELY;
+    delete std::get<array_value const *>(val);
   }
 }
 
+void copy_array(value_variant_base &val) {
+  if (val.index() == sequ_variant) {
+    CXX_UNLIKELY;
+    val = std::get<array_value const *>(val)->copy();
+  }
+}
+
+void invalidate_array(value_variant_base &val) {
+  if (val.index() == sequ_variant) {
+    CXX_UNLIKELY;
+    val = std::monostate{};
+  }
+}
+} // namespace
 
 // implement variants destructor to possibly free memory if needed.
-value_variant::~value_variant()
-{
-  delete_array(*this);
-}
+value_variant::~value_variant() { delete_array(*this); }
 
-value_variant::value_variant(const value_variant& other)
-: base(other)
-{
+value_variant::value_variant(const value_variant &other) : base(other) {
   assert(this != &other);
   copy_array(*this);
 }
 
-value_variant::value_variant(value_variant&& other)
-: base(std::move(other))
-{
+value_variant::value_variant(value_variant &&other) : base(std::move(other)) {
   assert(this != &other);
   invalidate_array(other);
 }
 
-value_variant& value_variant::operator=(const value_variant& other)
-{
-  if (&other != this)
-  {
+value_variant &value_variant::operator=(const value_variant &other) {
+  if (&other != this) {
     delete_array(*this);
-    static_cast<value_variant_base&>(*this) = other;
+    static_cast<value_variant_base &>(*this) = other;
     copy_array(*this);
   }
 
   return *this;
 }
 
-value_variant& value_variant::operator=(value_variant&& other)
-{
-  if (&other != this)
-  {
+value_variant &value_variant::operator=(value_variant &&other) {
+  if (&other != this) {
     delete_array(*this);
-    static_cast<value_variant_base&>(*this) = std::move(other);
+    static_cast<value_variant_base &>(*this) = std::move(other);
     invalidate_array(other);
   }
 
   return *this;
 }
-
-
-
 
 //
 // foundation classes
@@ -548,49 +499,30 @@ array::array(array &&other) : oper() {
   set_operands(std::move(other).move_operands());
 }
 
-array&
-array::operator=(array &&other) {
+array &array::operator=(array &&other) {
   set_operands(std::move(other).move_operands());
   return *this;
 }
 
-
-array_value::container_type const&
-array_value::value() const
-{
+array_value::container_type const &array_value::value() const {
   assert(vec.get());
 
   return *vec;
 }
 
-const array_value*
-array_value::copy() const
-{
-  return new array_value(*this);
-}
+const array_value *array_value::copy() const { return new array_value(*this); }
 
-value_variant
-array_value::to_variant() const
-{
-  return this;
-}
+value_variant array_value::to_variant() const { return this; }
 
 #if ENABLE_OPTIMIZATIONS
-void 
-opt_membership_array::set_elems(std::unordered_set<value_variant> els) 
-{ 
-  elements = std::move(els); 
+void opt_membership_array::set_elems(std::unordered_set<value_variant> els) {
+  elements = std::move(els);
 }
 
-std::unordered_set<value_variant> const& 
-opt_membership_array::elems() const 
-{ 
+std::unordered_set<value_variant> const &opt_membership_array::elems() const {
   return elements;
 }
 #endif /*ENABLE_OPTIMIZATIONS*/
-
-
-
 
 // accept implementations
 void equal::accept(visitor &v) const { v.visit(*this); }
@@ -645,9 +577,9 @@ void error::accept(visitor &v) const { v.visit(*this); }
 void regex_match::accept(visitor &v) const { v.visit(*this); }
 
 void regex_match::set_compiled(std::string_view pattern) {
-  compiled_pattern = boost::regex(
-    pattern.data(), pattern.size(),
-    boost::regex_constants::ECMAScript | boost::regex_constants::optimize);
+  compiled_pattern = boost::regex(pattern.data(), pattern.size(),
+                                  boost::regex_constants::ECMAScript |
+                                      boost::regex_constants::optimize);
 }
 #endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
 
@@ -655,10 +587,8 @@ void regex_match::set_compiled(std::string_view pattern) {
 void opt_membership_array::accept(visitor &v) const { v.visit(*this); }
 #endif /*ENABLE_OPTIMIZATIONS*/
 
-
 // to_variant conversion
-template <class T>
-value_variant value_generic<T>::to_variant() const {
+template <class T> value_variant value_generic<T>::to_variant() const {
   return value();
 }
 
@@ -735,7 +665,9 @@ struct forwarding_visitor : visitor {
 
 #if ENABLE_OPTIMIZATIONS
   // optimizations
-  void visit(const opt_membership_array &n) override { visit(up_cast<oper>(n)); }
+  void visit(const opt_membership_array &n) override {
+    visit(up_cast<oper>(n));
+  }
 #endif /* ENABLE_OPTIMIZATIONS */
 };
 
@@ -751,7 +683,7 @@ struct variable_map {
   void set_computed_variables(bool b) { withComputedNames = b; }
   /// \}
 
- private:
+private:
   using container_type = std::map<std::string_view, int>;
 
   container_type mapping = {};
@@ -771,9 +703,7 @@ void variable_map::insert(var &var) {
       auto [pos, success] = mapping.emplace(str.value(), mapping.size());
 
       var.num(pos->second);
-    }
-    else
-    {
+    } else {
       // do nothing for free variables in "lambdas"
     }
   } catch (const type_error &) {
@@ -794,25 +724,24 @@ std::vector<std::string_view> variable_map::to_vector() const {
 
 /// translates all children
 /// \{
-oper::container_type translate_children(const json::array &children, variable_map &);
+oper::container_type translate_children(const json::array &children,
+                                        variable_map &);
 
 oper::container_type translate_children(const json::value &n, variable_map &);
 /// \}
 
-array& mk_array()     { return deref(new array); }
+array &mk_array() { return deref(new array); }
 
-array_value& mk_array_value(std::vector<any_value> elems)
-{
+array_value &mk_array_value(std::vector<any_value> elems) {
   return deref(new array_value{std::move(elems)});
 }
 
 //~ array_view& mk_array_view(const array_value& arr)
 //~ {
-  //~ return deref(new array_view{arr});
+//~ return deref(new array_view{arr});
 //~ }
 
-template <class ExprT>
-ExprT &mk_operator_(oper::container_type args) {
+template <class ExprT> ExprT &mk_operator_(oper::container_type args) {
   ExprT &res = deref(new ExprT);
 
   res.set_operands(std::move(args));
@@ -833,16 +762,16 @@ expr &mk_operator(const json::object &n, variable_map &m) {
 /// creates and optimized membership tests for static arrays
 ///   and returns a "normal" membership test if the optimization
 ///   is not possible or disabled.
-expr &mk_membership_opt(const json::object &n, variable_map &m)
-{
+expr &mk_membership_opt(const json::object &n, variable_map &m) {
   oper::container_type args = translate_children(n.begin()->value(), m);
-  
-#if ENABLE_OPTIMIZATIONS      
-  if (std::unordered_set<value_variant> elems = try_static_set(args.back()); elems.size() != 0)
-  {
+
+#if ENABLE_OPTIMIZATIONS
+  if (std::unordered_set<value_variant> elems = try_static_set(args.back());
+      elems.size() != 0) {
     args.pop_back();
-    opt_membership_array &res = mk_operator_<opt_membership_array>(std::move(args));
-    
+    opt_membership_array &res =
+        mk_operator_<opt_membership_array>(std::move(args));
+
     res.set_elems(std::move(elems));
     return res;
   }
@@ -887,8 +816,7 @@ array &mk_array(const json::array &children, variable_map &m) {
   return res;
 }
 
-template <class value_t>
-value_t &mk_value(typename value_t::value_type n) {
+template <class value_t> value_t &mk_value(typename value_t::value_type n) {
   return deref(new value_t(std::move(n)));
 }
 
@@ -899,15 +827,16 @@ using dispatch_table =
 
 dispatch_table::const_iterator lookup(const dispatch_table &m,
                                       const json::object &op) {
-  if (op.size() != 1) return m.end();
+  if (op.size() != 1)
+    return m.end();
 
-  const json::string& key = op.begin()->key();
-  std::string_view    keyvw(&*key.begin(), key.size());
+  const json::string &key = op.begin()->key();
+  std::string_view keyvw(&*key.begin(), key.size());
 
   return m.find(keyvw);
 }
 
-any_expr translate_internal(const json::value& n, variable_map &varmap) {
+any_expr translate_internal(const json::value &n, variable_map &varmap) {
   static const dispatch_table dt = {
       {"==", &mk_operator<equal>},
       {"===", &mk_operator<strict_equal>},
@@ -951,60 +880,60 @@ any_expr translate_internal(const json::value& n, variable_map &varmap) {
   expr *res = nullptr;
 
   switch (n.kind()) {
-    case json::kind::object: {
-      const json::object &obj = n.get_object();
-      dispatch_table::const_iterator pos = lookup(dt, obj);
+  case json::kind::object: {
+    const json::object &obj = n.get_object();
+    dispatch_table::const_iterator pos = lookup(dt, obj);
 
-      if (pos != dt.end()) {
-        CXX_LIKELY;
-        res = &pos->second(obj, varmap);
-      } else {
-        // does jsonlogic support value objects?
-        unsupported();
-      }
-
-      break;
-    }
-
-    case json::kind::array: {
-      // array is an operator that combines its subexpressions into an array
-      res = &mk_array(n.get_array(), varmap);
-      break;
-    }
-
-    case json::kind::string: {
-      const json::string& str = n.get_string();
-      res = &mk_value<string_value>(managed_string_view(str.begin(), str.size()));
-      break;
-    }
-
-    case json::kind::int64: {
-      res = &mk_value<int_value>(n.get_int64());
-      break;
-    }
-
-    case json::kind::uint64: {
-      res = &mk_value<unsigned_int_value>(n.get_uint64());
-      break;
-    }
-
-    case json::kind::double_: {
-      res = &mk_value<real_value>(n.get_double());
-      break;
-    }
-
-    case json::kind::bool_: {
-      res = &mk_value<bool_value>(n.get_bool());
-      break;
-    }
-
-    case json::kind::null: {
-      res = &mk_null_value();
-      break;
-    }
-
-    default:
+    if (pos != dt.end()) {
+      CXX_LIKELY;
+      res = &pos->second(obj, varmap);
+    } else {
+      // does jsonlogic support value objects?
       unsupported();
+    }
+
+    break;
+  }
+
+  case json::kind::array: {
+    // array is an operator that combines its subexpressions into an array
+    res = &mk_array(n.get_array(), varmap);
+    break;
+  }
+
+  case json::kind::string: {
+    const json::string &str = n.get_string();
+    res = &mk_value<string_value>(managed_string_view(str.begin(), str.size()));
+    break;
+  }
+
+  case json::kind::int64: {
+    res = &mk_value<int_value>(n.get_int64());
+    break;
+  }
+
+  case json::kind::uint64: {
+    res = &mk_value<unsigned_int_value>(n.get_uint64());
+    break;
+  }
+
+  case json::kind::double_: {
+    res = &mk_value<real_value>(n.get_double());
+    break;
+  }
+
+  case json::kind::bool_: {
+    res = &mk_value<bool_value>(n.get_bool());
+    break;
+  }
+
+  case json::kind::null: {
+    res = &mk_null_value();
+    break;
+  }
+
+  default:
+    unsupported();
   }
 
   return any_expr(res);
@@ -1022,7 +951,8 @@ oper::container_type translate_children(const json::array &children,
   return res;
 }
 
-oper::container_type translate_children(const json::value &n, variable_map &varmap) {
+oper::container_type translate_children(const json::value &n,
+                                        variable_map &varmap) {
   if (const json::array *arr = n.if_array()) {
     CXX_LIKELY;
     return translate_children(*arr, varmap);
@@ -1035,16 +965,14 @@ oper::container_type translate_children(const json::value &n, variable_map &varm
 }
 } // namespace
 
-
-logic_rule create_logic(const json::value& n) {
+logic_rule create_logic(const json::value &n) {
   variable_map varmap;
   any_expr node = translate_internal(n, varmap);
   bool const hasComputedVariables = varmap.hasComputedVariables();
 
-  return logic_rule(std::make_unique<logic_data>(std::move(node), varmap.to_vector(), hasComputedVariables));
+  return logic_rule(std::make_unique<logic_data>(
+      std::move(node), varmap.to_vector(), hasComputedVariables));
 }
-
-
 
 //
 // to value_base conversion
@@ -1056,65 +984,63 @@ any_value to_value(std::uint64_t val) { return val; }
 any_value to_value(double val) { return val; }
 any_value to_value(managed_string_view val) { return val; }
 
-any_value to_value(const json::value &n); // \todo remove after moving to logic.hpp
-
+any_value
+to_value(const json::value &n); // \todo remove after moving to logic.hpp
 
 any_value to_value(const json::value &n) {
   any_value res;
 
   switch (n.kind()) {
-    case json::kind::string: {
-      const json::string& str = n.get_string(); // \todo this may be unsafe..
-      res = to_value(managed_string_view(&*str.begin(), str.size()));
-      break;
-    }
+  case json::kind::string: {
+    const json::string &str = n.get_string(); // \todo this may be unsafe..
+    res = to_value(managed_string_view(&*str.begin(), str.size()));
+    break;
+  }
 
-    case json::kind::int64: {
-      res = to_value(n.get_int64());
-      break;
-    }
+  case json::kind::int64: {
+    res = to_value(n.get_int64());
+    break;
+  }
 
-    case json::kind::uint64: {
-      res = to_value(n.get_uint64());
-      break;
-    }
+  case json::kind::uint64: {
+    res = to_value(n.get_uint64());
+    break;
+  }
 
-    case json::kind::double_: {
-      res = to_value(n.get_double());
-      break;
-    }
+  case json::kind::double_: {
+    res = to_value(n.get_double());
+    break;
+  }
 
-    case json::kind::bool_: {
-      res = to_value(n.get_bool());
-      break;
-    }
+  case json::kind::bool_: {
+    res = to_value(n.get_bool());
+    break;
+  }
 
-    case json::kind::null: {
-      res = to_value(nullptr);
-      break;
-    }
+  case json::kind::null: {
+    res = to_value(nullptr);
+    break;
+  }
 
-    case json::kind::array: {
-      std::vector<value_variant> values;
-      const json::array&         arr = n.get_array();
+  case json::kind::array: {
+    std::vector<value_variant> values;
+    const json::array &arr = n.get_array();
 
-      for (const json::value& val : arr)
-        values.emplace_back(to_value(val));
+    for (const json::value &val : arr)
+      values.emplace_back(to_value(val));
 
-      res = &mk_array_value(std::move(values));
-      break;
-    }
+    res = &mk_array_value(std::move(values));
+    break;
+  }
 
-    default:
-      unsupported();
+  default:
+    unsupported();
   }
 
   return res;
 }
 
-
-any_value to_value(const any_expr& n)
-{
+any_value to_value(const any_expr &n) {
   return down_cast<value_base>(*n).to_variant();
 }
 
@@ -1128,9 +1054,7 @@ struct not_int64_error : internal_coercion_error {};
 struct not_uint64_error : internal_coercion_error {};
 struct unpacked_array_req : internal_coercion_error {};
 
-
-template <class T>
-T from_string(std::string_view str, T el) {
+template <class T> T from_string(std::string_view str, T el) {
   auto [ptr, err] = std::from_chars(str.data(), str.data() + str.size(), el);
 
   if (err != std::errc{}) {
@@ -1147,7 +1071,8 @@ CXX_MAYBE_UNUSED inline std::int64_t to_concrete(std::int64_t v,
                                                  const std::int64_t &) {
   return v;
 }
-inline std::int64_t to_concrete(const managed_string_view& str, const std::int64_t &el) {
+inline std::int64_t to_concrete(const managed_string_view &str,
+                                const std::int64_t &el) {
   return from_string(str, el);
 }
 inline std::int64_t to_concrete(double v, const std::int64_t &) {
@@ -1176,7 +1101,8 @@ CXX_MAYBE_UNUSED inline std::uint64_t to_concrete(std::uint64_t v,
                                                   const std::uint64_t &) {
   return v;
 }
-inline std::uint64_t to_concrete(const managed_string_view& str, const std::uint64_t &el) {
+inline std::uint64_t to_concrete(const managed_string_view &str,
+                                 const std::uint64_t &el) {
   return from_string(str, el);
 }
 inline std::uint64_t to_concrete(double v, const std::uint64_t &) {
@@ -1201,7 +1127,7 @@ inline std::uint64_t to_concrete(std::int64_t v, const std::uint64_t &) {
 
 /// conversion to double
 /// \{
-inline double to_concrete(const managed_string_view& str, const double &el) {
+inline double to_concrete(const managed_string_view &str, const double &el) {
   return from_string(str, el);
 }
 inline double to_concrete(std::int64_t v, const double &) {
@@ -1222,9 +1148,6 @@ CXX_MAYBE_UNUSED inline double to_concrete(std::nullptr_t, const double &) {
 }
 /// \}
 
-
-
-
 /// conversion to string
 /// \{
 template <class Val>
@@ -1232,14 +1155,16 @@ inline managed_string_view to_concrete(Val v, const std::string_view &) {
   return managed_string_view(std::to_string(v));
 }
 inline managed_string_view to_concrete(bool v, const std::string_view &) {
-  static constexpr const char* bool_string[] = {"false", "true"};
+  static constexpr const char *bool_string[] = {"false", "true"};
 
   return managed_string_view(std::string_view(bool_string[v]));
 }
-CXX_MAYBE_UNUSED inline managed_string_view to_concrete(const managed_string_view &s, const std::string_view &) {
+CXX_MAYBE_UNUSED inline managed_string_view
+to_concrete(const managed_string_view &s, const std::string_view &) {
   return s;
 }
-inline managed_string_view to_concrete(std::nullptr_t, const std::string_view &) {
+inline managed_string_view to_concrete(std::nullptr_t,
+                                       const std::string_view &) {
   return managed_string_view(std::string_view("null"));
 }
 /// \}
@@ -1262,21 +1187,21 @@ inline bool to_concrete(std::nullptr_t, const bool &) { return false; }
 
 // \todo not sure if conversions from arrays to values should be
 // supported like this
-inline bool to_concrete(array_value const* arr, const bool &) {
+inline bool to_concrete(array_value const *arr, const bool &) {
   return arr->value().size();
 }
 /// \}
 
-}
-
+} // namespace
 
 /*
 template <typename T, typename U, typename = void>
 struct to_concrete_nostrings : std::false_type {};
 
 template <typename T, typename U>
-struct to_concrete_nostrings<T, U, std::void_t<decltype(to_concrete(std::declval<T>(), std::declval<const U&>())) >>
-       : std::true_type {};
+struct to_concrete_nostrings<T, U,
+std::void_t<decltype(to_concrete(std::declval<T>(), std::declval<const U&>()))
+>> : std::true_type {};
 
 //~ template< class T, class U> inline constexpr bool to_concrete_nostrings_v =
           //~ to_concrete_nostrings<T, U>::value;
@@ -1290,7 +1215,6 @@ U to_concrete_(T&& v, const U& u, string_table& strings)
     return to_concrete(std::forward<T>(v), u, strings);
 }
 */
-
 
 struct comparison_operator_base {
   enum : bool {
@@ -1307,7 +1231,7 @@ struct comparison_operator_base {
 
 template <class T> T to_calc_type(const T *val) { return *val; }
 
-const managed_string_view& to_calc_type(const managed_string_view *val) {
+const managed_string_view &to_calc_type(const managed_string_view *val) {
   return *val;
 }
 /*
@@ -1339,8 +1263,8 @@ struct strict_equality_operator : comparison_operator_base {
   }
 
   std::tuple<std::nullptr_t, std::nullptr_t> coerce(std::nullptr_t,
-                                                    std::nullptr_t) const  {
-    return {nullptr, nullptr};  // two null pointers are equal
+                                                    std::nullptr_t) const {
+    return {nullptr, nullptr}; // two null pointers are equal
   }
 
   template <class LhsT>
@@ -1363,15 +1287,18 @@ struct numeric_binary_operator_base {
     return {*lv, *rv};
   }
 
-  std::tuple<double, double> coerce(const double *lv, const std::int64_t *rv) const {
+  std::tuple<double, double> coerce(const double *lv,
+                                    const std::int64_t *rv) const {
     return {*lv, to_concrete(*rv, *lv)};
   }
 
-  std::tuple<double, double> coerce(const double *lv, const std::uint64_t *rv) const {
+  std::tuple<double, double> coerce(const double *lv,
+                                    const std::uint64_t *rv) const {
     return {*lv, to_concrete(*rv, *lv)};
   }
 
-  std::tuple<double, double> coerce(const std::int64_t *lv, const double *rv) const {
+  std::tuple<double, double> coerce(const std::int64_t *lv,
+                                    const double *rv) const {
     return {to_concrete(*lv, *rv), *rv};
   }
 
@@ -1385,7 +1312,8 @@ struct numeric_binary_operator_base {
     return {*lv, to_concrete(*rv, *lv)};
   }
 
-  std::tuple<double, double> coerce(const std::uint64_t *lv, const double *rv) const {
+  std::tuple<double, double> coerce(const std::uint64_t *lv,
+                                    const double *rv) const {
     return {to_concrete(*lv, *rv), *rv};
   }
 
@@ -1394,8 +1322,8 @@ struct numeric_binary_operator_base {
     return {to_concrete(*lv, *rv), *rv};
   }
 
-  std::tuple<std::uint64_t, std::uint64_t> coerce(const std::uint64_t *lv,
-                                                  const std::uint64_t *rv) const {
+  std::tuple<std::uint64_t, std::uint64_t>
+  coerce(const std::uint64_t *lv, const std::uint64_t *rv) const {
     return {*lv, *rv};
   }
 };
@@ -1406,7 +1334,8 @@ struct numeric_binary_operator_base {
 struct relational_operator_base : numeric_binary_operator_base {
   using numeric_binary_operator_base::coerce;
 
-  std::tuple<double, double> coerce(const double *lv, const managed_string_view* rv) const {
+  std::tuple<double, double> coerce(const double *lv,
+                                    const managed_string_view *rv) const {
     return {*lv, to_concrete(*rv, *lv)};
   }
 
@@ -1414,8 +1343,8 @@ struct relational_operator_base : numeric_binary_operator_base {
     return {*lv, to_concrete(*rv, *lv)};
   }
 
-  std::tuple<std::int64_t, std::int64_t> coerce(const std::int64_t *lv,
-                                                const managed_string_view* rv) const {
+  std::tuple<std::int64_t, std::int64_t>
+  coerce(const std::int64_t *lv, const managed_string_view *rv) const {
     return {*lv, to_concrete(*rv, *lv)};
   }
 
@@ -1424,8 +1353,8 @@ struct relational_operator_base : numeric_binary_operator_base {
     return {*lv, to_concrete(*rv, *lv)};
   }
 
-  std::tuple<std::uint64_t, std::uint64_t> coerce(const std::uint64_t *lv,
-                                                  const managed_string_view* rv) const {
+  std::tuple<std::uint64_t, std::uint64_t>
+  coerce(const std::uint64_t *lv, const managed_string_view *rv) const {
     return {*lv, to_concrete(*rv, *lv)};
   }
 
@@ -1434,7 +1363,8 @@ struct relational_operator_base : numeric_binary_operator_base {
     return {*lv, to_concrete(*rv, *lv)};
   }
 
-  std::tuple<double, double> coerce(const managed_string_view* lv, const double *rv) const {
+  std::tuple<double, double> coerce(const managed_string_view *lv,
+                                    const double *rv) const {
     return {to_concrete(*lv, *rv), *rv};
   }
 
@@ -1442,7 +1372,7 @@ struct relational_operator_base : numeric_binary_operator_base {
     return {to_concrete(*lv, *rv), *rv};
   }
 
-  std::tuple<std::int64_t, std::int64_t> coerce(const managed_string_view* lv,
+  std::tuple<std::int64_t, std::int64_t> coerce(const managed_string_view *lv,
                                                 const std::int64_t *rv) const {
     return {to_concrete(*lv, *rv), *rv};
   }
@@ -1452,28 +1382,30 @@ struct relational_operator_base : numeric_binary_operator_base {
     return {to_concrete(*lv, *rv), *rv};
   }
 
-  std::tuple<std::uint64_t, std::uint64_t> coerce(const managed_string_view* lv,
-                                                  const std::uint64_t *rv) const {
+  std::tuple<std::uint64_t, std::uint64_t>
+  coerce(const managed_string_view *lv, const std::uint64_t *rv) const {
     return {to_concrete(*lv, *rv), *rv};
   }
 
-  std::tuple<std::uint64_t, std::uint64_t> coerce(const bool *lv,
-                                                  const std::uint64_t *rv) const {
+  std::tuple<std::uint64_t, std::uint64_t>
+  coerce(const bool *lv, const std::uint64_t *rv) const {
     return {to_concrete(*lv, *rv), *rv};
   }
 
-  std::tuple<bool, bool> coerce(const managed_string_view *, const bool *) const {
+  std::tuple<bool, bool> coerce(const managed_string_view *,
+                                const bool *) const {
     // strings and boolean are never equal
     return {true, false};
   }
 
-  std::tuple<bool, bool> coerce(const bool *, const managed_string_view *) const {
+  std::tuple<bool, bool> coerce(const bool *,
+                                const managed_string_view *) const {
     // strings and boolean are never equal
     return {true, false};
   }
 
-  std::tuple<const managed_string_view&, const managed_string_view&> coerce(
-      const managed_string_view *lv, const managed_string_view *rv) const {
+  std::tuple<const managed_string_view &, const managed_string_view &>
+  coerce(const managed_string_view *lv, const managed_string_view *rv) const {
     return {*lv, *rv};
   }
 
@@ -1488,18 +1420,21 @@ struct equality_operator : relational_operator_base, comparison_operator_base {
   // due to special conversion rules, the coercion function may just produce
   //   the result instead of just unpacking and coercing values.
 
-  std::tuple<bool, bool> coerce(const array_value *, const array_value *) const {
-    return {true, false};  // arrays are never equal
+  std::tuple<bool, bool> coerce(const array_value *,
+                                const array_value *) const {
+    return {true, false}; // arrays are never equal
   }
 
   template <class T>
   std::tuple<bool, bool> coerce(const T *lv, const array_value *rv) const {
     // an array may be compared to a value_base
     //   (1) *lv == arr[0], iff the array has exactly one element
-    if (rv->value().size() == 1) throw unpacked_array_req{};
+    if (rv->value().size() == 1)
+      throw unpacked_array_req{};
 
     //   (2) or if [] and *lv converts to false
-    if (rv->value().size() > 1) return {false, true};
+    if (rv->value().size() > 1)
+      return {false, true};
 
     const bool convToFalse = to_concrete(*lv, false) == false;
 
@@ -1509,9 +1444,11 @@ struct equality_operator : relational_operator_base, comparison_operator_base {
   template <class T>
   std::tuple<bool, bool> coerce(const array_value *lv, const T *rv) const {
     // see comments in coerce(T*,array*)
-    if (lv->value().size() == 1) throw unpacked_array_req{};
+    if (lv->value().size() == 1)
+      throw unpacked_array_req{};
 
-    if (lv->value().size() > 1) return {false, true};
+    if (lv->value().size() > 1)
+      return {false, true};
 
     const bool convToFalse = to_concrete(*rv, false) == false;
 
@@ -1520,25 +1457,25 @@ struct equality_operator : relational_operator_base, comparison_operator_base {
 
   std::tuple<std::nullptr_t, std::nullptr_t> coerce(std::nullptr_t,
                                                     std::nullptr_t) const {
-    return {nullptr, nullptr};  // two null pointers are equal
+    return {nullptr, nullptr}; // two null pointers are equal
   }
 
   template <class T>
   std::tuple<bool, bool> coerce(const T *, std::nullptr_t) const {
-    return {false, true};  // null pointer is only equal to itself
+    return {false, true}; // null pointer is only equal to itself
   }
 
   template <class T>
   std::tuple<bool, bool> coerce(std::nullptr_t, const T *) const {
-    return {true, false};  // null pointer is only equal to itself
+    return {true, false}; // null pointer is only equal to itself
   }
 
   std::tuple<bool, bool> coerce(const array_value *, std::nullptr_t) const {
-    return {true, false};  // null pointer is only equal to itself
+    return {true, false}; // null pointer is only equal to itself
   }
 
   std::tuple<bool, bool> coerce(std::nullptr_t, const array_value *) const {
-    return {true, false};  // null pointer is only equal to itself
+    return {true, false}; // null pointer is only equal to itself
   }
 };
 
@@ -1546,19 +1483,21 @@ struct relational_operator : relational_operator_base,
                              comparison_operator_base {
   using relational_operator_base::coerce;
 
-  std::tuple<variant_span, variant_span>
-  coerce(const array_value *lv, const array_value *rv) const {
+  std::tuple<variant_span, variant_span> coerce(const array_value *lv,
+                                                const array_value *rv) const {
     return {element_range(lv), element_range(rv)};
   }
 
   template <class T>
-  std::tuple<bool, bool> coerce(const T *lv, array_value const* rv) const {
+  std::tuple<bool, bool> coerce(const T *lv, array_value const *rv) const {
     // an array may be equal to another value_base if
     //   (1) *lv == arr[0], iff the array has exactly one element
-    if (rv->value().size() == 1) throw unpacked_array_req{};
+    if (rv->value().size() == 1)
+      throw unpacked_array_req{};
 
     //   (2) or if [] and *lv converts to false
-    if (rv->value().size() > 1) return {false, true};
+    if (rv->value().size() > 1)
+      return {false, true};
 
     const bool convToTrue = to_concrete(*lv, true) == true;
 
@@ -1566,11 +1505,13 @@ struct relational_operator : relational_operator_base,
   }
 
   template <class T>
-  std::tuple<bool, bool> coerce(array_value const*lv, const T *rv) const {
+  std::tuple<bool, bool> coerce(array_value const *lv, const T *rv) const {
     // see comments in coerce(T*,array*)
-    if (lv->value().size() == 1) throw unpacked_array_req{};
+    if (lv->value().size() == 1)
+      throw unpacked_array_req{};
 
-    if (lv->value().size() > 1) return {false, true};
+    if (lv->value().size() > 1)
+      return {false, true};
 
     const bool convToTrue = to_concrete(*rv, true) == true;
 
@@ -1579,53 +1520,53 @@ struct relational_operator : relational_operator_base,
 
   std::tuple<std::nullptr_t, std::nullptr_t> coerce(std::nullptr_t,
                                                     std::nullptr_t) const {
-    return {nullptr, nullptr};  // two null pointers are equal
+    return {nullptr, nullptr}; // two null pointers are equal
   }
 
   std::tuple<bool, bool> coerce(const bool *lv, std::nullptr_t) const {
-    return {*lv, false};  // null pointer -> false
+    return {*lv, false}; // null pointer -> false
   }
 
   std::tuple<std::int64_t, std::int64_t> coerce(const std::int64_t *lv,
                                                 std::nullptr_t) const {
-    return {*lv, 0};  // null pointer -> 0
+    return {*lv, 0}; // null pointer -> 0
   }
 
   std::tuple<std::uint64_t, std::uint64_t> coerce(const std::uint64_t *lv,
                                                   std::nullptr_t) const {
-    return {*lv, 0};  // null pointer -> 0
+    return {*lv, 0}; // null pointer -> 0
   }
 
   std::tuple<double, double> coerce(const double *lv, std::nullptr_t) const {
-    return {*lv, 0};  // null pointer -> 0.0
+    return {*lv, 0}; // null pointer -> 0.0
   }
 
-  std::tuple<const managed_string_view&, std::nullptr_t> coerce(const managed_string_view *lv,
-                                                      std::nullptr_t) const {
-    return {to_calc_type(lv), nullptr};  // requires special handling
+  std::tuple<const managed_string_view &, std::nullptr_t>
+  coerce(const managed_string_view *lv, std::nullptr_t) const {
+    return {to_calc_type(lv), nullptr}; // requires special handling
   }
 
   std::tuple<bool, bool> coerce(std::nullptr_t, const bool *rv) const {
-    return {false, *rv};  // null pointer -> false
+    return {false, *rv}; // null pointer -> false
   }
 
   std::tuple<std::int64_t, std::int64_t> coerce(std::nullptr_t,
                                                 const std::int64_t *rv) const {
-    return {0, *rv};  // null pointer -> 0
+    return {0, *rv}; // null pointer -> 0
   }
 
-  std::tuple<std::uint64_t, std::uint64_t> coerce(std::nullptr_t,
-                                                  const std::uint64_t *rv) const {
-    return {0, *rv};  // null pointer -> 0
+  std::tuple<std::uint64_t, std::uint64_t>
+  coerce(std::nullptr_t, const std::uint64_t *rv) const {
+    return {0, *rv}; // null pointer -> 0
   }
 
   std::tuple<double, double> coerce(std::nullptr_t, const double *rv) const {
-    return {0, *rv};  // null pointer -> 0
+    return {0, *rv}; // null pointer -> 0
   }
 
-  std::tuple<std::nullptr_t, const managed_string_view&> coerce(std::nullptr_t,
-                                                      const managed_string_view *rv) const {
-    return {nullptr, to_calc_type(rv)};  // requires special handling
+  std::tuple<std::nullptr_t, const managed_string_view &>
+  coerce(std::nullptr_t, const managed_string_view *rv) const {
+    return {nullptr, to_calc_type(rv)}; // requires special handling
   }
 };
 // @}
@@ -1665,13 +1606,13 @@ struct arithmetic_operator : numeric_binary_operator_base {
     return {nullptr, nullptr};
   }
 
-  std::tuple<std::nullptr_t, std::nullptr_t> coerce(std::nullptr_t,
-                                                    const std::int64_t *) const {
+  std::tuple<std::nullptr_t, std::nullptr_t>
+  coerce(std::nullptr_t, const std::int64_t *) const {
     return {nullptr, nullptr};
   }
 
-  std::tuple<std::nullptr_t, std::nullptr_t> coerce(std::nullptr_t,
-                                                    const std::uint64_t *) const {
+  std::tuple<std::nullptr_t, std::nullptr_t>
+  coerce(std::nullptr_t, const std::uint64_t *) const {
     return {nullptr, nullptr};
   }
 
@@ -1706,8 +1647,8 @@ struct string_operator_non_destructive {
 
   using result_type = any_value;
 
-  std::tuple<const managed_string_view&, const managed_string_view&> coerce(
-      const managed_string_view *lv, const managed_string_view *rv) const {
+  std::tuple<const managed_string_view &, const managed_string_view &>
+  coerce(const managed_string_view *lv, const managed_string_view *rv) const {
     return {*lv, *rv};
   }
 };
@@ -1722,40 +1663,39 @@ struct array_operator {
     defined_for_array = true
   };
 
-  using result_type = array_value const*;
+  using result_type = array_value const *;
 
-  std::tuple<variant_span, variant_span>
-  coerce(const array_value *lv, const array_value *rv) const {
+  std::tuple<variant_span, variant_span> coerce(const array_value *lv,
+                                                const array_value *rv) const {
     return {element_range(lv), element_range(rv)};
   }
 };
 
-
 struct arithmetic_converter {
-  template <class T>
-  CXX_NORETURN
-  any_value operator()(T) const { throw_type_error(); }
+  template <class T> CXX_NORETURN any_value operator()(T) const {
+    throw_type_error();
+  }
 
-  any_value operator()(std::nullptr_t)  const { return nullptr; }
+  any_value operator()(std::nullptr_t) const { return nullptr; }
 
   // defined for the following types
-  any_value operator()(std::int64_t v)  const { return v; }
+  any_value operator()(std::int64_t v) const { return v; }
   any_value operator()(std::uint64_t v) const { return v; }
-  any_value operator()(double v)        const { return v; }
+  any_value operator()(double v) const { return v; }
 
-  any_value operator()(bool)            const { return nullptr; /* correct? */ }
+  any_value operator()(bool) const { return nullptr; /* correct? */ }
 
   // need to convert values
-  any_value operator()(const managed_string_view& v) const {
-    const double        dblval = to_concrete(v, double{});
-    const std::int64_t  intval = dblval;
-    const bool          intval_is_precise = dblval == intval;
+  any_value operator()(const managed_string_view &v) const {
+    const double dblval = to_concrete(v, double{});
+    const std::int64_t intval = dblval;
+    const bool intval_is_precise = dblval == intval;
 
     if (intval_is_precise)
       return intval;
 
     const std::uint64_t uintval = dblval;
-    const bool          uint_is_precise = uintval == dblval;
+    const bool uint_is_precise = uintval == dblval;
 
     if (uint_is_precise)
       return uintval;
@@ -1764,112 +1704,117 @@ struct arithmetic_converter {
   }
 };
 
-
 any_value convert(any_value val, const arithmetic_operator &) {
   return std::visit(arithmetic_converter{}, val);
 }
 
-
 struct string_converter {
-    template <class T>
-    CXX_NORETURN
-    managed_string_view operator()(T) const { throw_type_error(); }
+  template <class T> CXX_NORETURN managed_string_view operator()(T) const {
+    throw_type_error();
+  }
 
-    // defined for the following types
-    managed_string_view operator()(managed_string_view val) const { return val; }
-    // need to convert values
-    managed_string_view operator()(bool val) const { return to_concrete(val, std::string_view{}); }
-    managed_string_view operator()(std::int64_t val) const { return to_concrete(val, std::string_view{}); }
-    managed_string_view operator()(std::uint64_t val) const { return to_concrete(val, std::string_view{}); }
-    managed_string_view operator()(double val) const { return to_concrete(val, std::string_view{}); }
-    managed_string_view operator()(std::nullptr_t) const { return to_concrete(nullptr, std::string_view{}); }
+  // defined for the following types
+  managed_string_view operator()(managed_string_view val) const { return val; }
+  // need to convert values
+  managed_string_view operator()(bool val) const {
+    return to_concrete(val, std::string_view{});
+  }
+  managed_string_view operator()(std::int64_t val) const {
+    return to_concrete(val, std::string_view{});
+  }
+  managed_string_view operator()(std::uint64_t val) const {
+    return to_concrete(val, std::string_view{});
+  }
+  managed_string_view operator()(double val) const {
+    return to_concrete(val, std::string_view{});
+  }
+  managed_string_view operator()(std::nullptr_t) const {
+    return to_concrete(nullptr, std::string_view{});
+  }
 };
 
-
-managed_string_view convert(any_value val, const string_operator_non_destructive &) {
+managed_string_view convert(any_value val,
+                            const string_operator_non_destructive &) {
   return std::visit(string_converter{}, val);
 }
 
-  struct array_converter {
-    using result_type = array_value const*;
+struct array_converter {
+  using result_type = array_value const *;
 
-    // moves res into
-    result_type to_array(any_value val) const {
-      std::vector<value_variant> values;
+  // moves res into
+  result_type to_array(any_value val) const {
+    std::vector<value_variant> values;
 
-      values.emplace_back(std::move(val));
-      return &mk_array_value(std::move(values));
-    }
+    values.emplace_back(std::move(val));
+    return &mk_array_value(std::move(values));
+  }
 
-    // defined for the following types
-    template <class T>
-    CXX_NORETURN
-    result_type operator()(T&&) const                   { throw_type_error(); }
+  // defined for the following types
+  template <class T> CXX_NORETURN result_type operator()(T &&) const {
+    throw_type_error();
+  }
 
-    result_type operator()(array_value const* v) const
-    {
-      return v->copy();
-    }
+  result_type operator()(array_value const *v) const { return v->copy(); }
 
-    // need to move value_base to new array
-    result_type operator()(const managed_string_view& v) const { return to_array(to_value(v)); }
-    result_type operator()(bool v) const                       { return to_array(to_value(v)); }
-    result_type operator()(std::int64_t v) const               { return to_array(to_value(v)); }
-    result_type operator()(std::uint64_t v) const              { return to_array(to_value(v)); }
-    result_type operator()(double v) const                     { return to_array(to_value(v)); }
-    result_type operator()(std::nullptr_t) const               { return to_array(to_value(nullptr)); }
-  };
-
+  // need to move value_base to new array
+  result_type operator()(const managed_string_view &v) const {
+    return to_array(to_value(v));
+  }
+  result_type operator()(bool v) const { return to_array(to_value(v)); }
+  result_type operator()(std::int64_t v) const { return to_array(to_value(v)); }
+  result_type operator()(std::uint64_t v) const {
+    return to_array(to_value(v));
+  }
+  result_type operator()(double v) const { return to_array(to_value(v)); }
+  result_type operator()(std::nullptr_t) const {
+    return to_array(to_value(nullptr));
+  }
+};
 
 any_value convert(any_value val, const array_operator &) {
   return std::visit(array_converter{}, val);
 }
-template <class value_t>
-struct tag_type_traits
-{
+template <class value_t> struct tag_type_traits {
   using type = value_t;
 };
 
-template <>
-struct tag_type_traits<managed_string_view>
-{
+template <> struct tag_type_traits<managed_string_view> {
   using type = std::string_view;
 };
 
-template <class value_t>
-struct unpacker {
-    using tag_type = tag_type_traits<value_t>::type;
+template <class value_t> struct unpacker {
+  using tag_type = tag_type_traits<value_t>::type;
 
-    value_t conv(const value_t& val, const tag_type&) { return val; }
+  value_t conv(const value_t &val, const tag_type &) { return val; }
 
-    template <class U>
-    value_t conv(const U &val, const tag_type &tag) const {
-      return to_concrete(val, tag);
+  template <class U> value_t conv(const U &val, const tag_type &tag) const {
+    return to_concrete(val, tag);
+  }
+
+  template <class T> CXX_NORETURN value_t operator()(T) const {
+    throw_type_error();
+  }
+
+  // defined for the following types
+  value_t operator()(const managed_string_view &val) const {
+    return conv(val, tag_type{});
+  }
+
+  // need to convert values
+  value_t operator()(bool val) const { return conv(val, tag_type{}); }
+  value_t operator()(std::int64_t val) const { return conv(val, tag_type{}); }
+  value_t operator()(std::uint64_t val) const { return conv(val, tag_type{}); }
+  value_t operator()(double val) const { return conv(val, tag_type{}); }
+  value_t operator()(std::nullptr_t) const { return conv(nullptr, tag_type{}); }
+
+  value_t operator()(array_value const *val) const {
+    if constexpr (std::is_same<value_t, bool>::value) {
+      CXX_LIKELY;
+      return conv(val, tag_type{});
     }
 
-    template <class T>
-    CXX_NORETURN
-    value_t operator()(T) const { throw_type_error(); }
-
-    // defined for the following types
-    value_t operator()(const managed_string_view& val) const { return conv(val, tag_type{}); }
-
-    // need to convert values
-    value_t operator()(bool val) const { return conv(val, tag_type{}); }
-    value_t operator()(std::int64_t val) const { return conv(val, tag_type{}); }
-    value_t operator()(std::uint64_t val) const { return conv(val, tag_type{}); }
-    value_t operator()(double val) const { return conv(val, tag_type{}); }
-    value_t operator()(std::nullptr_t) const { return conv(nullptr, tag_type{}); }
-
-    value_t operator()(array_value const* val) const {
-      if constexpr (std::is_same<value_t, bool>::value) {
-        CXX_LIKELY;
-        return conv(val, tag_type{});
-      }
-
-      throw_type_error();
-    }
-
+    throw_type_error();
+  }
 };
 
 /*
@@ -1882,31 +1827,22 @@ T unpack_value(const expr &expr, string_table& strings) {
 }
 */
 
-template <class T>
-T unpack_value(any_value el) {
+template <class T> T unpack_value(any_value el) {
   return std::visit(unpacker<T>{}, el);
 }
-
 
 //
 // Json Logic - truthy/falsy
 
-
-bool truthy(const any_value &el)
-{
-  return unpack_value<bool>(el);
-}
+bool truthy(const any_value &el) { return unpack_value<bool>(el); }
 
 bool falsy(const any_value &el) { return !truthy(el); }
 
-
-
 namespace {
 
-
 template <class T, class fn_t, class alt_fn_t>
-auto with_type(any_value& v, fn_t fn, alt_fn_t altfn) -> decltype(altfn()) {
-  if (T* casted = std::get_if<T>(&v))
+auto with_type(any_value &v, fn_t fn, alt_fn_t altfn) -> decltype(altfn()) {
+  if (T *casted = std::get_if<T>(&v))
     return fn(*casted);
 
   return altfn();
@@ -1922,33 +1858,35 @@ struct binary_operator_visitor_2 { // : forwarding_visitor {
   binary_operator_visitor_2(lhs_value_t lval, binary_op_t oper)
       : lv(lval), op(oper) {}
 
-  template <class rhs_value_t>
-  result_type calc(rhs_value_t rv) const {
+  template <class rhs_value_t> result_type calc(rhs_value_t rv) const {
     auto [ll, rr] = op.coerce(lv, rv);
     //~ std::cerr << lv << " -- " << rv << " " << typeid(ll).name()
-              //~ << std::endl;
+    //~ << std::endl;
     return op(std::move(ll), std::move(rr));
     //~ std::cerr << lv << " == " << rv << std::endl;
   }
 
-  template <class T>
-  CXX_NORETURN
-  result_type operator()(T) const { throw_type_error(); }
+  template <class T> CXX_NORETURN result_type operator()(T) const {
+    throw_type_error();
+  }
 
-  result_type operator()(const managed_string_view& n) const {
-    if constexpr (binary_op_t::defined_for_string) return calc(&n);
+  result_type operator()(const managed_string_view &n) const {
+    if constexpr (binary_op_t::defined_for_string)
+      return calc(&n);
 
     throw_type_error();
   }
 
   result_type operator()(std::nullptr_t) const {
-    if constexpr (binary_op_t::defined_for_null) return calc(nullptr);
+    if constexpr (binary_op_t::defined_for_null)
+      return calc(nullptr);
 
     throw_type_error();
   }
 
   result_type operator()(bool n) const {
-    if constexpr (binary_op_t::defined_for_boolean) return calc(&n);
+    if constexpr (binary_op_t::defined_for_boolean)
+      return calc(&n);
 
     throw_type_error();
   }
@@ -1992,12 +1930,13 @@ struct binary_operator_visitor_2 { // : forwarding_visitor {
   }
 
   result_type operator()(double n) const {
-    if constexpr (binary_op_t::defined_for_real) return calc(&n);
+    if constexpr (binary_op_t::defined_for_real)
+      return calc(&n);
 
     throw_type_error();
   }
 
-  result_type operator()(array_value const* n) const {
+  result_type operator()(array_value const *n) const {
     result_type res;
     if constexpr (binary_op_t::defined_for_array) {
       try {
@@ -2014,43 +1953,44 @@ struct binary_operator_visitor_2 { // : forwarding_visitor {
     throw_type_error();
   }
 
- private:
+private:
   lhs_value_t lv;
   mutable binary_op_t op;
 };
 
-template <class binary_op_t>
-struct binary_operator_visitor  {
+template <class binary_op_t> struct binary_operator_visitor {
   using result_type = typename binary_op_t::result_type;
 
   binary_operator_visitor(binary_op_t oper, const any_value &rhsarg)
       : op(oper), rhs(rhsarg) {}
 
-  template <class LhsValue>
-  result_type calc(LhsValue lv) const {
+  template <class LhsValue> result_type calc(LhsValue lv) const {
     using rhs_visitor = binary_operator_visitor_2<binary_op_t, LhsValue>;
 
     return std::visit(rhs_visitor{lv, op}, rhs);
   }
 
-  template <class T>
-  CXX_NORETURN
-  result_type operator()(T) const { throw_type_error(); }
+  template <class T> CXX_NORETURN result_type operator()(T) const {
+    throw_type_error();
+  }
 
-  result_type operator()(const managed_string_view& n) const {
-    if constexpr (binary_op_t::defined_for_string) return calc(&n);
+  result_type operator()(const managed_string_view &n) const {
+    if constexpr (binary_op_t::defined_for_string)
+      return calc(&n);
 
     throw_type_error();
   }
 
-  result_type operator()(std::nullptr_t) const  {
-    if constexpr (binary_op_t::defined_for_null) return calc(nullptr);
+  result_type operator()(std::nullptr_t) const {
+    if constexpr (binary_op_t::defined_for_null)
+      return calc(nullptr);
 
     throw_type_error();
   }
 
   result_type operator()(bool n) const {
-    if constexpr (binary_op_t::defined_for_boolean) return calc(&n);
+    if constexpr (binary_op_t::defined_for_boolean)
+      return calc(&n);
 
     throw_type_error();
   }
@@ -2095,12 +2035,13 @@ struct binary_operator_visitor  {
   }
 
   result_type operator()(double n) const {
-    if constexpr (binary_op_t::defined_for_real) return calc(&n);
+    if constexpr (binary_op_t::defined_for_real)
+      return calc(&n);
 
     throw_type_error();
   }
 
-  result_type operator()(array_value const* n) const {
+  result_type operator()(array_value const *n) const {
     if constexpr (binary_op_t::defined_for_array) {
       try {
         return calc(n);
@@ -2116,42 +2057,45 @@ struct binary_operator_visitor  {
     throw_type_error();
   }
 
-
- private:
-  binary_op_t      op;
-  const any_value& rhs;
+private:
+  binary_op_t op;
+  const any_value &rhs;
 };
 
 //
 // compute and sequence functions
 
 template <class binary_op_t>
-typename binary_op_t::result_type compute(const any_value &lhs,
-                                          const any_value &rhs, binary_op_t op) {
+typename binary_op_t::result_type
+compute(const any_value &lhs, const any_value &rhs, binary_op_t op) {
   using lhs_visitor = binary_operator_visitor<binary_op_t>;
 
   return std::visit(lhs_visitor{op, rhs}, lhs);
 }
 
 template <class binary_predicate_t>
-bool compare_sequence(variant_span lv, variant_span rv, binary_predicate_t pred) {
+bool compare_sequence(variant_span lv, variant_span rv,
+                      binary_predicate_t pred) {
   const std::size_t lsz = lv.size();
   const std::size_t rsz = rv.size();
 
-  if (lsz == 0) return pred(false, rsz != 0);
+  if (lsz == 0)
+    return pred(false, rsz != 0);
 
-  if (rsz == 0) return pred(true, false);
+  if (rsz == 0)
+    return pred(true, false);
 
   std::size_t const len = std::min(lsz, rsz);
-  auto const        lbeg = lv.begin();
-  bool              res = false;
-  auto cmpElems = [&pred,&res](const any_value& lhs, const any_value& rhs) -> bool
-                  {
-                    res = compute(lhs, rhs, pred);
-                    return res == compute(rhs, lhs, pred);
-                  };
+  auto const lbeg = lv.begin();
+  bool res = false;
+  auto cmpElems = [&pred, &res](const any_value &lhs,
+                                const any_value &rhs) -> bool {
+    res = compute(lhs, rhs, pred);
+    return res == compute(rhs, lhs, pred);
+  };
 
-  auto const [lpos, rpos] = std::mismatch(lbeg, lbeg + len, rv.begin(), cmpElems);
+  auto const [lpos, rpos] =
+      std::mismatch(lbeg, lbeg + len, rv.begin(), cmpElems);
   bool const matching_elems = lbeg + len == lpos;
 
   if (matching_elems)
@@ -2160,10 +2104,11 @@ bool compare_sequence(variant_span lv, variant_span rv, binary_predicate_t pred)
   return res;
 }
 
-
 template <class binary_predicate_t>
-bool compare_sequence(array_value const *lv, array_value const *rv, binary_predicate_t pred) {
-  return compare_sequence(element_range(lv), element_range(rv), std::move(pred));
+bool compare_sequence(array_value const *lv, array_value const *rv,
+                      binary_predicate_t pred) {
+  return compare_sequence(element_range(lv), element_range(rv),
+                          std::move(pred));
 }
 
 /// convenience template that only returns \p R
@@ -2174,13 +2119,11 @@ bool compare_sequence(array_value const *lv, array_value const *rv, binary_predi
 /// \tparam V second operator type
 /// \tparam R operator result type
 /// \{
-template <class U, class V, class R>
-struct mismatched_types {
+template <class U, class V, class R> struct mismatched_types {
   using type = R;
 };
 
-template <class T, class R>
-struct mismatched_types<T, T, R> {
+template <class T, class R> struct mismatched_types<T, T, R> {
   // missing "using type" triggers SFINAE exclusion for matching types
 };
 /// \}
@@ -2188,11 +2131,9 @@ struct mismatched_types<T, T, R> {
 //
 // the calc operator implementations
 
-template <class>
-struct operator_impl {};
+template <class> struct operator_impl {};
 
-template <>
-struct operator_impl<equal> : equality_operator {
+template <> struct operator_impl<equal> : equality_operator {
   using equality_operator::result_type;
 
   template <class U, class V>
@@ -2207,8 +2148,7 @@ struct operator_impl<equal> : equality_operator {
   }
 };
 
-template <>
-struct operator_impl<not_equal> : equality_operator {
+template <> struct operator_impl<not_equal> : equality_operator {
   using equality_operator::result_type;
 
   template <class U, class V>
@@ -2223,8 +2163,7 @@ struct operator_impl<not_equal> : equality_operator {
   }
 };
 
-template <>
-struct operator_impl<strict_equal> : strict_equality_operator {
+template <> struct operator_impl<strict_equal> : strict_equality_operator {
   using strict_equality_operator::result_type;
 
   template <class U, class V>
@@ -2240,8 +2179,7 @@ struct operator_impl<strict_equal> : strict_equality_operator {
   }
 };
 
-template <>
-struct operator_impl<strict_not_equal> : strict_equality_operator {
+template <> struct operator_impl<strict_not_equal> : strict_equality_operator {
   using strict_equality_operator::result_type;
 
   template <class U, class V>
@@ -2256,8 +2194,7 @@ struct operator_impl<strict_not_equal> : strict_equality_operator {
   }
 };
 
-template <>
-struct operator_impl<less> : relational_operator {
+template <> struct operator_impl<less> : relational_operator {
   using relational_operator::result_type;
 
   result_type operator()(const std::nullptr_t, std::nullptr_t) const {
@@ -2268,22 +2205,20 @@ struct operator_impl<less> : relational_operator {
     return compare_sequence(lv, rv, *this);
   }
 
-  result_type operator()(const managed_string_view&, std::nullptr_t) const {
+  result_type operator()(const managed_string_view &, std::nullptr_t) const {
     return false;
   }
 
-  result_type operator()(std::nullptr_t, const managed_string_view&) const {
+  result_type operator()(std::nullptr_t, const managed_string_view &) const {
     return false;
   }
 
-  template <class T>
-  result_type operator()(const T &lhs, const T &rhs) const {
+  template <class T> result_type operator()(const T &lhs, const T &rhs) const {
     return lhs < rhs;
   }
 };
 
-template <>
-struct operator_impl<greater> : relational_operator {
+template <> struct operator_impl<greater> : relational_operator {
   using relational_operator::result_type;
 
   result_type operator()(const std::nullptr_t, std::nullptr_t) const {
@@ -2294,22 +2229,20 @@ struct operator_impl<greater> : relational_operator {
     return compare_sequence(lv, rv, *this);
   }
 
-  result_type operator()(const managed_string_view&, std::nullptr_t) const {
+  result_type operator()(const managed_string_view &, std::nullptr_t) const {
     return false;
   }
 
-  result_type operator()(std::nullptr_t, const managed_string_view&) const {
+  result_type operator()(std::nullptr_t, const managed_string_view &) const {
     return false;
   }
 
-  template <class T>
-  result_type operator()(const T &lhs, const T &rhs) const {
+  template <class T> result_type operator()(const T &lhs, const T &rhs) const {
     return rhs < lhs;
   }
 };
 
-template <>
-struct operator_impl<less_or_equal> : relational_operator {
+template <> struct operator_impl<less_or_equal> : relational_operator {
   using relational_operator::result_type;
 
   result_type operator()(const std::nullptr_t, std::nullptr_t) const {
@@ -2320,22 +2253,20 @@ struct operator_impl<less_or_equal> : relational_operator {
     return compare_sequence(lv, rv, *this);
   }
 
-  result_type operator()(const managed_string_view& lhs, std::nullptr_t) const {
+  result_type operator()(const managed_string_view &lhs, std::nullptr_t) const {
     return lhs.empty();
   }
 
-  result_type operator()(std::nullptr_t, const managed_string_view& rhs) const {
+  result_type operator()(std::nullptr_t, const managed_string_view &rhs) const {
     return rhs.empty();
   }
 
-  template <class T>
-  result_type operator()(const T &lhs, const T &rhs) const {
+  template <class T> result_type operator()(const T &lhs, const T &rhs) const {
     return lhs <= rhs;
   }
 };
 
-template <>
-struct operator_impl<greater_or_equal> : relational_operator {
+template <> struct operator_impl<greater_or_equal> : relational_operator {
   using relational_operator::result_type;
 
   result_type operator()(const std::nullptr_t, std::nullptr_t) const {
@@ -2346,64 +2277,56 @@ struct operator_impl<greater_or_equal> : relational_operator {
     return compare_sequence(lv, rv, *this);
   }
 
-  result_type operator()(const managed_string_view& lhs, std::nullptr_t) const {
+  result_type operator()(const managed_string_view &lhs, std::nullptr_t) const {
     return lhs.empty();
   }
 
-  result_type operator()(std::nullptr_t, const managed_string_view& rhs) const {
+  result_type operator()(std::nullptr_t, const managed_string_view &rhs) const {
     return rhs.empty();
   }
 
-  template <class T>
-  result_type operator()(const T &lhs, const T &rhs) const {
+  template <class T> result_type operator()(const T &lhs, const T &rhs) const {
     return rhs <= lhs;
   }
 };
 
-template <>
-struct operator_impl<add> : arithmetic_operator {
+template <> struct operator_impl<add> : arithmetic_operator {
   using arithmetic_operator::result_type;
 
   result_type operator()(std::nullptr_t, std::nullptr_t) const {
     return to_value(nullptr);
   }
 
-  template <class T>
-  result_type operator()(const T &lhs, const T &rhs) const {
+  template <class T> result_type operator()(const T &lhs, const T &rhs) const {
     return to_value(lhs + rhs);
   }
 };
 
-template <>
-struct operator_impl<subtract> : arithmetic_operator {
+template <> struct operator_impl<subtract> : arithmetic_operator {
   using arithmetic_operator::result_type;
 
   result_type operator()(std::nullptr_t, std::nullptr_t) const {
     return to_value(nullptr);
   }
 
-  template <class T>
-  result_type operator()(const T &lhs, const T &rhs) const {
+  template <class T> result_type operator()(const T &lhs, const T &rhs) const {
     return to_value(lhs - rhs);
   }
 };
 
-template <>
-struct operator_impl<multiply> : arithmetic_operator {
+template <> struct operator_impl<multiply> : arithmetic_operator {
   using arithmetic_operator::result_type;
 
   result_type operator()(std::nullptr_t, std::nullptr_t) const {
     return to_value(nullptr);
   }
 
-  template <class T>
-  result_type operator()(const T &lhs, const T &rhs) const {
+  template <class T> result_type operator()(const T &lhs, const T &rhs) const {
     return to_value(lhs * rhs);
   }
 };
 
-template <>
-struct operator_impl<divide> : arithmetic_operator {
+template <> struct operator_impl<divide> : arithmetic_operator {
   using arithmetic_operator::result_type;
 
   result_type operator()(std::nullptr_t, std::nullptr_t) const {
@@ -2417,77 +2340,70 @@ struct operator_impl<divide> : arithmetic_operator {
     return to_value(res);
   }
 
-  template <class Int_t>
-  result_type operator()(Int_t lhs, Int_t rhs) const {
-    if (lhs % rhs) return (*this)(double(lhs), double(rhs));
+  template <class Int_t> result_type operator()(Int_t lhs, Int_t rhs) const {
+    if (lhs % rhs)
+      return (*this)(double(lhs), double(rhs));
 
     return to_value(lhs / rhs);
   }
 };
 
-template <>
-struct operator_impl<modulo> : integer_arithmetic_operator {
+template <> struct operator_impl<modulo> : integer_arithmetic_operator {
   using integer_arithmetic_operator::result_type;
 
   std::nullptr_t operator()(std::nullptr_t, std::nullptr_t) const {
     return nullptr;
   }
 
-  template <class T>
-  result_type operator()(const T &lhs, const T &rhs) const {
-    if (rhs == 0) return to_value(nullptr);
+  template <class T> result_type operator()(const T &lhs, const T &rhs) const {
+    if (rhs == 0)
+      return to_value(nullptr);
 
     return to_value(lhs % rhs);
   }
 };
 
-template <>
-struct operator_impl<min> : arithmetic_operator {
+template <> struct operator_impl<min> : arithmetic_operator {
   using arithmetic_operator::result_type;
 
   result_type operator()(const std::nullptr_t, std::nullptr_t) const {
     return nullptr;
   }
 
-  template <class T>
-  result_type operator()(const T &lhs, const T &rhs) const {
+  template <class T> result_type operator()(const T &lhs, const T &rhs) const {
     return to_value(std::min(lhs, rhs));
   }
 };
 
-template <>
-struct operator_impl<max> : arithmetic_operator {
+template <> struct operator_impl<max> : arithmetic_operator {
   using arithmetic_operator::result_type;
 
   result_type operator()(const std::nullptr_t, std::nullptr_t) const {
     return nullptr;
   }
 
-  template <class T>
-  result_type operator()(const T &lhs, const T &rhs) const {
+  template <class T> result_type operator()(const T &lhs, const T &rhs) const {
     return to_value(std::max(lhs, rhs));
   }
 };
 
-template <>
-struct operator_impl<logical_not> {
+template <> struct operator_impl<logical_not> {
   using result_type = bool;
 
   result_type operator()(any_value val) const { return falsy(val); }
 };
 
-template <>
-struct operator_impl<logical_not_not> {
+template <> struct operator_impl<logical_not_not> {
   using result_type = bool;
 
   result_type operator()(any_value val) const { return truthy(val); }
 };
 
-template <>
-struct operator_impl<cat> : string_operator_non_destructive {
+template <> struct operator_impl<cat> : string_operator_non_destructive {
   using string_operator_non_destructive::result_type;
 
-  result_type operator()(const managed_string_view& lhs, const managed_string_view& rhs) const {
+  result_type operator()(const managed_string_view &lhs,
+                         const managed_string_view &rhs) const {
     std::string tmp;
 
     tmp.reserve(lhs.size() + rhs.size());
@@ -2497,29 +2413,26 @@ struct operator_impl<cat> : string_operator_non_destructive {
 
     return to_value(managed_string_view(std::move(tmp)));
   }
-
 };
 
 /// implements the string mode of the membership operator
 ///    the mode testing element in an array is implemented
 ///    in the evaluator::visit function.
-template <>
-struct operator_impl<membership> : string_operator_non_destructive {
+template <> struct operator_impl<membership> : string_operator_non_destructive {
   using string_operator_non_destructive::result_type;
 
-  result_type operator()(const managed_string_view& lhs, const managed_string_view& rhs) const {
+  result_type operator()(const managed_string_view &lhs,
+                         const managed_string_view &rhs) const {
     const bool res = (rhs.find(lhs) != json::string::npos);
 
     return to_value(res);
   }
 };
 
-
 // operator_impl<regex_match> removed: logic is handled directly in
 // evaluator::visit(const regex_match &) to support the pre-compiled fast path.
 
-template <>
-struct operator_impl<merge> : array_operator {
+template <> struct operator_impl<merge> : array_operator {
   using array_operator::result_type;
 
   result_type operator()(const variant_span ll, const variant_span rr) const {
@@ -2534,10 +2447,10 @@ struct operator_impl<merge> : array_operator {
   }
 };
 
-using variant_logger = std::function<void(const value_variant&)>;
+using variant_logger = std::function<void(const value_variant &)>;
 
 struct evaluator : forwarding_visitor {
-  evaluator(variable_accessor varAccess, variant_logger& out)
+  evaluator(variable_accessor varAccess, variant_logger &out)
       : vars(std::move(varAccess)), logger(out), calcres(nullptr) {}
 
   void visit(const equal &) final;
@@ -2596,9 +2509,9 @@ struct evaluator : forwarding_visitor {
 
   any_value eval(const expr &);
 
- private:
+private:
   variable_accessor vars;
-  variant_logger& logger;
+  variant_logger &logger;
   any_value calcres;
 
   evaluator(const evaluator &) = delete;
@@ -2623,12 +2536,10 @@ struct evaluator : forwarding_visitor {
   void reduce_sequence(const oper &n, binary_op_t op);
 
   /// computes unary operation on n[0]
-  template <class UnaryOperator>
-  void unary(const oper &n, UnaryOperator calc);
+  template <class UnaryOperator> void unary(const oper &n, UnaryOperator calc);
 
   /// binary operation on all elements (invents an element if none is present)
-  template <class binary_op_t>
-  void binary(const oper &n, binary_op_t binop);
+  template <class binary_op_t> void binary(const oper &n, binary_op_t binop);
 
   /// evaluates and unpacks n[argpos] to a fundamental value_base
   std::int64_t unpack_optional_int_arg(const oper &n, int argpos,
@@ -2636,10 +2547,9 @@ struct evaluator : forwarding_visitor {
 
   /// auxiliary missing method
   std::tuple<std::vector<value_variant>, std::size_t>
-  missing_aux(const oper& n, std::size_t arrpos);
+  missing_aux(const oper &n, std::size_t arrpos);
 
-  template <class ValueNode>
-  void _value(const ValueNode &val) {
+  template <class ValueNode> void _value(const ValueNode &val) {
     calcres = to_value(val.value());
   }
 };
@@ -2650,7 +2560,8 @@ struct sequence_function {
 
   any_value operator()(const any_value &elem) const {
     evaluator sub{[&elem](value_variant keyval, int) -> any_value {
-                    if (managed_string_view* pkey = std::get_if<managed_string_view>(&keyval)) {
+                    if (managed_string_view *pkey =
+                            std::get_if<managed_string_view>(&keyval)) {
                       if (pkey->size() == 0)
                         return elem;
                     }
@@ -2662,9 +2573,9 @@ struct sequence_function {
     return sub.eval(exp);
   }
 
- private:
+private:
   const expr &exp;
-  variant_logger& logger;
+  variant_logger &logger;
 };
 
 struct sequence_predicate : sequence_function {
@@ -2675,17 +2586,19 @@ struct sequence_predicate : sequence_function {
   }
 };
 
-
 struct sequence_reduction {
-  sequence_reduction(expr &e, variant_logger& logstream)
+  sequence_reduction(expr &e, variant_logger &logstream)
       : exp(e), logger(logstream) {}
 
   any_value operator()(any_value accu, any_value elem) const {
     evaluator sub{[&accu, &elem](value_variant keyval, int) -> any_value {
-                    if (const managed_string_view *pkey = std::get_if<managed_string_view>(&keyval)) {
+                    if (const managed_string_view *pkey =
+                            std::get_if<managed_string_view>(&keyval)) {
                       CXX_LIKELY;
-                      if (*pkey == "current") return elem;
-                      if (*pkey == "accumulator") return accu;
+                      if (*pkey == "current")
+                        return elem;
+                      if (*pkey == "accumulator")
+                        return accu;
                     }
                     return to_value(nullptr);
                   },
@@ -2694,9 +2607,9 @@ struct sequence_reduction {
     return sub.eval(exp);
   }
 
- private:
+private:
   expr &exp;
-  variant_logger& logger;
+  variant_logger &logger;
 };
 
 std::int64_t evaluator::unpack_optional_int_arg(const oper &n, int argpos,
@@ -2748,11 +2661,11 @@ void evaluator::reduce_sequence(const oper &n, binary_op_t op) {
   int idx = -1;
 
   any_value tmp0 = eval(n.operand(++idx));
-  any_value res  = convert(std::move(tmp0), op);
+  any_value res = convert(std::move(tmp0), op);
 
   while (idx != (num - 1)) {
     any_value tmp1 = eval(n.operand(++idx));
-    any_value rhs  = convert(std::move(tmp1), op);
+    any_value rhs = convert(std::move(tmp1), op);
     any_value tmp2 = compute(res, rhs, op);
 
     res = std::move(tmp2);
@@ -2890,17 +2803,22 @@ void evaluator::visit(const cat &n) {
 void evaluator::visit(const regex_match &n) {
   if (n.has_compiled()) {
     // Fast path: pattern was pre-compiled at parse time.
-    // operand(0) is the pattern literal (ignored here); operand(1) is the value.
+    // operand(0) is the pattern literal (ignored here); operand(1) is the
+    // value.
     any_value val = eval(n.operand(1));
     const managed_string_view *sv = std::get_if<managed_string_view>(&val);
-    calcres = (sv != nullptr) && boost::regex_search(sv->begin(), sv->end(), n.compiled());
+    calcres = (sv != nullptr) &&
+              boost::regex_search(sv->begin(), sv->end(), n.compiled());
   } else {
     // Slow path: dynamic pattern — compile at evaluation time.
     any_value lhs = eval(n.operand(0));
     any_value rhs = eval(n.operand(1));
     const managed_string_view *pattern = std::get_if<managed_string_view>(&lhs);
     const managed_string_view *subject = std::get_if<managed_string_view>(&rhs);
-    if (pattern == nullptr || subject == nullptr) { calcres = false; return; }
+    if (pattern == nullptr || subject == nullptr) {
+      calcres = false;
+      return;
+    }
     boost::regex rgx(pattern->data(), pattern->size());
     calcres = boost::regex_search(subject->begin(), subject->end(), rgx);
   }
@@ -2914,9 +2832,9 @@ void evaluator::visit(const membership &n) {
   any_value lhs = eval(n.operand(0));
   any_value rhs = eval(n.operand(1));
 
-  auto array_op = [&lhs](array_value const* v) -> any_value {
+  auto array_op = [&lhs](array_value const *v) -> any_value {
     variant_span spn = element_range(v);
-    auto const   lim = spn.end();
+    auto const lim = spn.end();
 
     return std::find(spn.begin(), lim, lhs) != lim;
   };
@@ -2930,13 +2848,13 @@ void evaluator::visit(const membership &n) {
     return to_value(false);
   };
 
-  calcres = with_type<array_value const*>(rhs, array_op, string_op);
+  calcres = with_type<array_value const *>(rhs, array_op, string_op);
 }
 
 #if ENABLE_OPTIMIZATIONS
 void evaluator::visit(const opt_membership_array &n) {
   any_value lhs = eval(n.operand(0));
-  
+
   calcres = n.elems().count(lhs) > 0;
 }
 #endif /*ENABLE_OPTIMIZATIONS*/
@@ -2944,7 +2862,8 @@ void evaluator::visit(const opt_membership_array &n) {
 void evaluator::visit(const substr &n) {
   assert(n.num_evaluated_operands() >= 1);
 
-  managed_string_view str = unpack_value<managed_string_view>(eval(n.operand(0)));
+  managed_string_view str =
+      unpack_value<managed_string_view>(eval(n.operand(0)));
   std::int64_t ofs = unpack_optional_int_arg(n, 1, 0);
   std::int64_t cnt = unpack_optional_int_arg(n, 2, 0);
 
@@ -2967,11 +2886,14 @@ void evaluator::visit(const array &n) {
   elems.reserve(n.num_evaluated_operands());
 
   evaluator *self = this;
-  auto      eval_array_elems = [self](const any_expr &exp) -> any_value { return self->eval(*exp); };
+  auto eval_array_elems = [self](const any_expr &exp) -> any_value {
+    return self->eval(*exp);
+  };
 
-  std::transform(n.begin(), n.end(), std::back_inserter(elems), eval_array_elems);
+  std::transform(n.begin(), n.end(), std::back_inserter(elems),
+                 eval_array_elems);
 
-  calcres = &mk_array_value( std::move(elems) );
+  calcres = &mk_array_value(std::move(elems));
 }
 
 void evaluator::visit(const merge &n) {
@@ -2983,114 +2905,106 @@ void evaluator::visit(const reduce &n) {
   expr &expr = n.operand(1);
   any_value accu = eval(n.operand(2));
 
-  auto op = [&expr, accu, calclogger = &this->logger]
-            (array_value const* v) -> any_value {
+  auto op = [&expr, accu,
+             calclogger = &this->logger](array_value const *v) -> any_value {
     variant_span spn = element_range(v);
-    return std::accumulate( spn.begin(), spn.end(),
-                            std::move(accu),
-                            sequence_reduction{expr, *calclogger}
-                          );
+    return std::accumulate(spn.begin(), spn.end(), std::move(accu),
+                           sequence_reduction{expr, *calclogger});
   };
 
   auto mkInvalid = []() -> any_value { return nullptr; };
 
-  calcres = with_type<array_value const*>(arr, op, mkInvalid);
+  calcres = with_type<array_value const *>(arr, op, mkInvalid);
 }
 
-array_value const*
-empty_array_value() { return &mk_array_value(); }
+array_value const *empty_array_value() { return &mk_array_value(); }
 
 void evaluator::visit(const map &n) {
   any_value arr = eval(n.operand(0));
-  auto mapper = [&n, &arr, calclogger = &this->logger]
-                 (array_value const* v) -> array_value const* {
+  auto mapper = [&n, &arr, calclogger = &this->logger](
+                    array_value const *v) -> array_value const * {
     variant_span spn = element_range(v);
     expr &expr = n.operand(1);
     std::vector<any_value> mapped_elements;
 
     mapped_elements.reserve(spn.size());
 
-    std::transform(spn.begin(), spn.end(),
-                   std::back_inserter(mapped_elements),
+    std::transform(spn.begin(), spn.end(), std::back_inserter(mapped_elements),
                    sequence_function{expr, *calclogger});
 
     return &mk_array_value(std::move(mapped_elements));
   };
 
-  calcres = with_type<array_value const*>(arr, mapper, &empty_array_value);
+  calcres = with_type<array_value const *>(arr, mapper, &empty_array_value);
 }
 
 void evaluator::visit(const filter &n) {
   any_value arr = eval(n.operand(0));
-  auto filter = [&n, &arr, calclogger = &this->logger]
-                (array_value const* v) -> array_value const* {
+  auto filter = [&n, &arr, calclogger = &this->logger](
+                    array_value const *v) -> array_value const * {
     variant_span spn = element_range(v);
     expr &expr = n.operand(1);
     std::vector<any_value> filtered_elements;
 
     // non destructive predicate is required for evaluating and copying
-    std::copy_if(spn.begin(), spn.end(),
-                 std::back_inserter(filtered_elements),
+    std::copy_if(spn.begin(), spn.end(), std::back_inserter(filtered_elements),
                  sequence_predicate{expr, *calclogger});
 
     return &mk_array_value(std::move(filtered_elements));
   };
 
-  calcres = with_type<array_value const*>(arr, filter, &empty_array_value);
+  calcres = with_type<array_value const *>(arr, filter, &empty_array_value);
 }
 
 void evaluator::visit(const all &n) {
   any_value arr = eval(n.operand(0));
 
-  auto all_of = [&n, &arr, calclogger = &this->logger]
-                (array_value const* v) -> bool {
+  auto all_of = [&n, &arr,
+                 calclogger = &this->logger](array_value const *v) -> bool {
     variant_span spn = element_range(v);
     expr &expr = n.operand(1);
 
-    return std::all_of( spn.begin(), spn.end(),
-                        sequence_predicate{expr, *calclogger}
-                      );
+    return std::all_of(spn.begin(), spn.end(),
+                       sequence_predicate{expr, *calclogger});
   };
 
-  auto mismatch_false = []()->bool { return false; };
+  auto mismatch_false = []() -> bool { return false; };
 
-  calcres = with_type<array_value const*>(arr, all_of, mismatch_false);
+  calcres = with_type<array_value const *>(arr, all_of, mismatch_false);
 }
 
 void evaluator::visit(const none &n) {
   any_value arr = eval(n.operand(0));
 
-  auto none_of = [&n, &arr, calclogger = &this->logger]
-                 (array_value const* v) -> bool {
+  auto none_of = [&n, &arr,
+                  calclogger = &this->logger](array_value const *v) -> bool {
     variant_span spn = element_range(v);
     expr &expr = n.operand(1);
 
-    return std::none_of( spn.begin(), spn.end(),
-                         sequence_predicate{expr, *calclogger}
-                       );
+    return std::none_of(spn.begin(), spn.end(),
+                        sequence_predicate{expr, *calclogger});
   };
 
-  auto mismatch_true = []()->bool { return true; };
+  auto mismatch_true = []() -> bool { return true; };
 
-  calcres = with_type<array_value const*>(arr, none_of, mismatch_true);
+  calcres = with_type<array_value const *>(arr, none_of, mismatch_true);
 }
 
 void evaluator::visit(const some &n) {
   any_value arr = eval(n.operand(0));
 
-  auto any_of = [&n, &arr, calclogger = &this->logger]
-                (array_value const* v) -> bool {
+  auto any_of = [&n, &arr,
+                 calclogger = &this->logger](array_value const *v) -> bool {
     variant_span spn = element_range(v);
     expr &expr = n.operand(1);
 
-    return std::any_of( spn.begin(), spn.end(),
-                        sequence_predicate{expr, *calclogger}
-                      );
+    return std::any_of(spn.begin(), spn.end(),
+                       sequence_predicate{expr, *calclogger});
   };
 
-  auto mismatch_false = []()->bool { return false; };
+  auto mismatch_false = []() -> bool { return false; };
 
-  calcres = with_type<array_value const*>(arr, any_of, mismatch_false);
+  calcres = with_type<array_value const *>(arr, any_of, mismatch_false);
 }
 
 void evaluator::visit(const error &) { unsupported(); }
@@ -3109,23 +3023,25 @@ void evaluator::visit(const var &n) {
 }
 
 std::tuple<std::vector<value_variant>, std::size_t>
-evaluator::missing_aux(const oper& n, std::size_t arrpos) {
+evaluator::missing_aux(const oper &n, std::size_t arrpos) {
   any_value arr = eval(n.operand(arrpos));
   std::vector<value_variant> tmpval;
 
-  auto non_array_alt = [&tmpval, &arr, &n, pos=arrpos+1, calc = this]() -> variant_span
-  {
-    std::transform( std::next(n.begin(), pos), n.end(),
-                    std::back_inserter(tmpval),
-                    [&calc](const any_expr &e) -> any_value { return calc->eval(*e); }
-                  );
+  auto non_array_alt = [&tmpval, &arr, &n, pos = arrpos + 1,
+                        calc = this]() -> variant_span {
+    std::transform(
+        std::next(n.begin(), pos), n.end(), std::back_inserter(tmpval),
+        [&calc](const any_expr &e) -> any_value { return calc->eval(*e); });
 
     return element_range(tmpval);
   };
 
-  auto unwrapped = [](array_value const* v) -> variant_span { return element_range(v); };
+  auto unwrapped = [](array_value const *v) -> variant_span {
+    return element_range(v);
+  };
 
-  variant_span elems = with_type<array_value const*>(arr, unwrapped, non_array_alt);
+  variant_span elems =
+      with_type<array_value const *>(arr, unwrapped, non_array_alt);
 
   auto notavail = [calc = this](const any_value &val) -> bool {
     try {
@@ -3139,14 +3055,11 @@ evaluator::missing_aux(const oper& n, std::size_t arrpos) {
 
   std::vector<value_variant> res;
 
-  std::copy_if( std::make_move_iterator(elems.begin()), std::make_move_iterator(elems.end()),
-                std::back_inserter(res),
-                notavail
-              );
+  std::copy_if(std::make_move_iterator(elems.begin()),
+               std::make_move_iterator(elems.end()), std::back_inserter(res),
+               notavail);
 
-  return { std::move(res),
-           elems.size() - res.size()
-         };
+  return {std::move(res), elems.size() - res.size()};
 }
 
 void evaluator::visit(const missing &n) {
@@ -3208,14 +3121,14 @@ void evaluator::visit(const unsigned_int_value &n) { _value(n); }
 void evaluator::visit(const real_value &n) { _value(n); }
 void evaluator::visit(const string_value &n) { _value(n); }
 
-any_value eval_path(const managed_string_view& path, const json::object *obj) {
+any_value eval_path(const managed_string_view &path, const json::object *obj) {
   if (obj) {
     if (auto pos = obj->find(path); pos != obj->end())
       return jsonlogic::to_value(pos->value());
 
     if (std::size_t pos = path.find('.'); pos != json::string::npos) {
       managed_string_view selector = path.substr(0, pos);
-      managed_string_view suffix   = path.substr(pos + 1);
+      managed_string_view suffix = path.substr(pos + 1);
 
       return eval_path(suffix, obj->at(selector).if_object());
     }
@@ -3224,41 +3137,42 @@ any_value eval_path(const managed_string_view& path, const json::object *obj) {
   throw variable_resolution_error{"in logic.cc::eval_path."};
 }
 
-template <class IntT>
-any_value eval_index(IntT idx, const json::array &arr) {
+template <class IntT> any_value eval_index(IntT idx, const json::array &arr) {
   return jsonlogic::to_value(arr[idx]);
 }
 
-
 any_value apply(const expr &exp, const variable_accessor &vars) {
-  variant_logger logger = [](const value_variant& val) -> void { std::cerr << val << std::endl; };
+  variant_logger logger = [](const value_variant &val) -> void {
+    std::cerr << val << std::endl;
+  };
   evaluator ev{vars, logger};
 
   return ev.eval(exp);
 }
 
-any_value apply(logic_data& rule, const variable_accessor &vars) {
+any_value apply(logic_data &rule, const variable_accessor &vars) {
   assert(rule.syntax_tree().get());
   return jsonlogic::apply(*rule.syntax_tree(), vars);
 }
 
-any_value apply(logic_data& rule) {
-  auto no_variables = [](value_variant, int) -> any_value { throw std::logic_error{"variable accessor not available"}; };
+any_value apply(logic_data &rule) {
+  auto no_variables = [](value_variant, int) -> any_value {
+    throw std::logic_error{"variable accessor not available"};
+  };
 
   return jsonlogic::apply(rule, no_variables);
 }
 
-any_value apply(logic_data& rule, std::vector<value_variant> vars) {
+any_value apply(logic_data &rule, std::vector<value_variant> vars) {
   return jsonlogic::apply(rule, variant_accessor(std::move(vars)));
 }
 
-}  // namespace
-
-
+} // namespace
 
 variable_accessor json_accessor(json::value data) {
   return [data = std::move(data)](value_variant keyval, int) -> any_value {
-    if (const managed_string_view *ppath = std::get_if<managed_string_view>(&keyval)) {
+    if (const managed_string_view *ppath =
+            std::get_if<managed_string_view>(&keyval)) {
       //~ std::cerr << *ppath << std::endl;
       return ppath->size() ? eval_path(*ppath, data.if_object())
                            : to_value(data);
@@ -3285,62 +3199,59 @@ variable_accessor variant_accessor(std::vector<value_variant> vars) {
   };
 }
 
-
-
-std::ostream& operator<<(std::ostream& os, const value_variant& val)
-{
+std::ostream &operator<<(std::ostream &os, const value_variant &val) {
   switch (val.index()) {
-    case mono_variant: {
-      os << "<mono/unavail>";
-      break;
-    }
+  case mono_variant: {
+    os << "<mono/unavail>";
+    break;
+  }
 
-    case null_variant: {
-      os << "null";
-      break;
-    }
+  case null_variant: {
+    os << "null";
+    break;
+  }
 
-    case bool_variant: {
-      os << (std::get<bool>(val) ? "true" : "false");
-      break;
-    }
+  case bool_variant: {
+    os << (std::get<bool>(val) ? "true" : "false");
+    break;
+  }
 
-    case sint_variant: {
-      os << std::get<std::int64_t>(val);
-      break;
-    }
+  case sint_variant: {
+    os << std::get<std::int64_t>(val);
+    break;
+  }
 
-    case uint_variant: {
-      os << std::get<std::uint64_t>(val);
-      break;
-    }
+  case uint_variant: {
+    os << std::get<std::uint64_t>(val);
+    break;
+  }
 
-    case real_variant: {
-      // print the double as json would print it so that strings
-      //   are comparable.
-      os << json::value(std::get<double>(val));
-      break;
-    }
+  case real_variant: {
+    // print the double as json would print it so that strings
+    //   are comparable.
+    os << json::value(std::get<double>(val));
+    break;
+  }
 
-    case strv_variant: {
-      os << '"' << std::get<managed_string_view>(val).view() << '"';
-      break;
-    }
+  case strv_variant: {
+    os << '"' << std::get<managed_string_view>(val).view() << '"';
+    break;
+  }
 
-    case sequ_variant: {
-      const char* sep = "";
-      os << '[';
-      for (const value_variant& v : std::get<array_value const*>(val)->value()) {
-        os << sep << v;
-        sep = ",";
-      }
-      os << ']';
-      break;
+  case sequ_variant: {
+    const char *sep = "";
+    os << '[';
+    for (const value_variant &v : std::get<array_value const *>(val)->value()) {
+      os << sep << v;
+      sep = ",";
     }
+    os << ']';
+    break;
+  }
 
-    default:
-      // did val hold a valid value?
-      os << "<error>";
+  default:
+    // did val hold a valid value?
+    os << "<error>";
   }
 
   return os;
@@ -3373,7 +3284,7 @@ struct value_printer : forwarding_visitor {
     os << "]";
   }
 
- private:
+private:
   std::ostream &os;
 };
 
@@ -3391,15 +3302,14 @@ expr &oper::operand(int n) const { return deref(this->at(n).get()); }
 //
 // logic_rule
 
-logic_rule::logic_rule(std::unique_ptr<logic_data>&& rule_data)
-: data(std::move(rule_data))
-{}
+logic_rule::logic_rule(std::unique_ptr<logic_data> &&rule_data)
+    : data(std::move(rule_data)) {}
 
-logic_rule::logic_rule(logic_rule&&)            = default;
-logic_rule& logic_rule::operator=(logic_rule&&) = default;
-logic_rule::~logic_rule()                       = default;
+logic_rule::logic_rule(logic_rule &&) = default;
+logic_rule &logic_rule::operator=(logic_rule &&) = default;
+logic_rule::~logic_rule() = default;
 
-logic_data& logic_rule::internal_data() { return *data; }
+logic_data &logic_rule::internal_data() { return *data; }
 
 std::vector<std::string_view> const &logic_rule::variable_names() const {
   return data->variable_names();
@@ -3411,13 +3321,12 @@ bool logic_rule::has_computed_variable_names() const {
 
 any_value logic_rule::apply() { return jsonlogic::apply(*data); }
 
-
 any_value logic_rule::apply(const variable_accessor &var_accessor) {
   return jsonlogic::apply(*data, var_accessor);
 }
 
-any_value logic_rule::apply(std::vector<value_variant> vars)  {
+any_value logic_rule::apply(std::vector<value_variant> vars) {
   return jsonlogic::apply(*data, std::move(vars));
 }
 
-}  // namespace jsonlogic
+} // namespace jsonlogic
