@@ -1,1 +1,1 @@
-{"rule":{"regex":["^hello",{"var":"s"}]},"data":{"s":"hello world"},"expected":true,"description":"regex: prefix match succeeds"}
+{"rule":{"regex":[{"var":"s"},"^hello"]},"data":{"s":"hello world"},"expected":true,"description":"regex: prefix match succeeds"}

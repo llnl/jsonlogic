@@ -797,12 +797,12 @@ expr &mk_variable(const json::object &n, variable_map &m) {
 }
 
 #if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
-/// Creates a regex_match node, pre-compiling the pattern when the first
+/// Creates a regex_match node, pre-compiling the pattern when the second
 /// argument is a string literal (the common case for billion-row workloads).
 expr &mk_regex_opt(const json::object &n, variable_map &m) {
   regex_match &res = mk_operator_<regex_match>(n, m);
 
-  if (const string_value *sv = may_down_cast<string_value>(res.operand(0)))
+  if (const string_value *sv = may_down_cast<string_value>(res.operand(1)))
     res.set_compiled(std::string_view(sv->value()));
 
   return res;
@@ -2803,9 +2803,8 @@ void evaluator::visit(const cat &n) {
 void evaluator::visit(const regex_match &n) {
   if (n.has_compiled()) {
     // Fast path: pattern was pre-compiled at parse time.
-    // operand(0) is the pattern literal (ignored here); operand(1) is the
-    // value.
-    any_value val = eval(n.operand(1));
+    // operand(0) is the value; operand(1) is the pattern literal (ignored here).
+    any_value val = eval(n.operand(0));
     const managed_string_view *sv = std::get_if<managed_string_view>(&val);
     calcres = (sv != nullptr) &&
               boost::regex_search(sv->begin(), sv->end(), n.compiled());
@@ -2813,8 +2812,8 @@ void evaluator::visit(const regex_match &n) {
     // Slow path: dynamic pattern — compile at evaluation time.
     any_value lhs = eval(n.operand(0));
     any_value rhs = eval(n.operand(1));
-    const managed_string_view *pattern = std::get_if<managed_string_view>(&lhs);
-    const managed_string_view *subject = std::get_if<managed_string_view>(&rhs);
+    const managed_string_view *subject = std::get_if<managed_string_view>(&lhs);
+    const managed_string_view *pattern = std::get_if<managed_string_view>(&rhs);
     if (pattern == nullptr || subject == nullptr) {
       calcres = false;
       return;
