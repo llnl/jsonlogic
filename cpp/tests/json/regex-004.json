@@ -1,1 +1,1 @@
-{"rule":{"regex":["[0-9]+",{"var":"s"}]},"data":{"s":"abc123"},"expected":true,"description":"regex: character class matches digits in string"}
+{"rule":{"regex":[{"var":"s"},"[0-9]+"]},"data":{"s":"abc123"},"expected":true,"description":"regex: character class matches digits in string"}

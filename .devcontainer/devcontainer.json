@@ -8,17 +8,18 @@
 	"workspaceFolder": "/workspaces/jsonlogic/cpp",
 	"customizations": {
 		"vscode": {
-
-        "extensions": [
-				"llvm-vs-code-extensions.vscode-clangd"
-            // add other extensions as needed
-        ]
+			"extensions": [
+				"llvm-vs-code-extensions.vscode-clangd",
+				"ms-vscode.cmake-tools"
+			],
+			"settings": {
+				"[cpp]": {
+					"editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+				},
+				"clangd.checkUpdates": true,
+				"cmake.debugConfig": { "MIMode": "lldb" },
+				"cmake.options.statusBarVisibility": "compact"
+			}
 		}
 	}
-	// "mounts": [
-  	// 	"type=bind,source=${env:SSH_AUTH_SOCK},target=/ssh-agent"
-	// ],
-	// "remoteEnv": {
-  	// 	"SSH_AUTH_SOCK": "/ssh-agent"
-	// }	
 }

@@ -1,1 +1,1 @@
-{"rule":{"regex":["[0-9]+",{"var":"n"}]},"data":{"n":42},"expected":false,"description":"regex: non-string input returns false"}
+{"rule":{"regex":[{"var":"n"},"[0-9]+"]},"data":{"n":42},"expected":false,"description":"regex: non-string input returns false"}
