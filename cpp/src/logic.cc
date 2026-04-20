@@ -574,13 +574,25 @@ void array_value::accept(visitor &v) const { v.visit(*this); }
 void error::accept(visitor &v) const { v.visit(*this); }
 
 #if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
+boost::regex compile_regex(std::string_view pattern)
+{
+  return boost::regex( pattern.data(), pattern.size(),
+                       boost::regex_constants::ECMAScript | boost::regex_constants::optimize
+                     );
+}
+
 void regex_match::accept(visitor &v) const { v.visit(*this); }
 
 void regex_match::set_compiled(std::string_view pattern) {
-  compiled_pattern = boost::regex(pattern.data(), pattern.size(),
-                                  boost::regex_constants::ECMAScript |
-                                      boost::regex_constants::optimize);
+  compiled_pattern = compile_regex(pattern);
 }
+
+void regex_strings::accept(visitor &v) const { v.visit(*this); }
+
+void regex_strings::set_compiled(std::string_view pattern) {
+  compiled_pattern = compile_regex(pattern);
+}
+
 #endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
 
 #if ENABLE_OPTIMIZATIONS
@@ -661,6 +673,7 @@ struct forwarding_visitor : visitor {
 #if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
   // extensions
   void visit(const regex_match &n) override { visit(up_cast<oper>(n)); }
+  void visit(const regex_strings &n) override { visit(up_cast<oper>(n)); }
 #endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
 
 #if ENABLE_OPTIMIZATIONS
@@ -797,6 +810,7 @@ expr &mk_variable(const json::object &n, variable_map &m) {
 }
 
 #if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
+
 /// Creates a regex_match node, pre-compiling the pattern when the second
 /// argument is a string literal (the common case for billion-row workloads).
 expr &mk_regex_opt(const json::object &n, variable_map &m) {
@@ -807,6 +821,16 @@ expr &mk_regex_opt(const json::object &n, variable_map &m) {
 
   return res;
 }
+
+expr &mk_regex_strings_opt(const json::object &n, variable_map &m) {
+  regex_strings &res = mk_operator_<regex_strings>(n, m);
+
+  if (const string_value *sv = may_down_cast<string_value>(res.operand(1)))
+    res.set_compiled(std::string_view(sv->value()));
+
+  return res;
+}
+
 #endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
 
 array &mk_array(const json::array &children, variable_map &m) {
@@ -874,6 +898,7 @@ any_expr translate_internal(const json::value &n, variable_map &varmap) {
 #if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
       /// extensions
       {"regex", &mk_regex_opt},
+      {"regex_strings", &mk_regex_strings_opt},
 #endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
   };
 
@@ -2429,8 +2454,6 @@ template <> struct operator_impl<membership> : string_operator_non_destructive {
   }
 };
 
-// operator_impl<regex_match> removed: logic is handled directly in
-// evaluator::visit(const regex_match &) to support the pre-compiled fast path.
 
 template <> struct operator_impl<merge> : array_operator {
   using array_operator::result_type;
@@ -2502,6 +2525,7 @@ struct evaluator : forwarding_visitor {
 
 #if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
   void visit(const regex_match &) final;
+  void visit(const regex_strings &) final;
 #endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
 #if ENABLE_OPTIMIZATIONS
   void visit(const opt_membership_array &) final;
@@ -2822,6 +2846,68 @@ void evaluator::visit(const regex_match &n) {
     calcres = boost::regex_search(subject->begin(), subject->end(), rgx);
   }
 }
+
+
+/// Returns all strings in \p s that match the pattern in \p pattern.
+/// \param  s       the input string view
+/// \param  pattern the regex
+/// \return a vector of strings for matches found in \p s.
+array_value&
+all_regex_strings(const managed_string_view& s, const boost::regex& pattern)
+{
+  std::vector<any_value> res;
+  boost::cmatch          matches;
+
+  if (boost::regex_search(s.begin(), s.end(), matches, pattern))
+  {
+    std::cerr << matches.size() << std::endl;
+
+    // Use a range-based for loop to iterate through all matches
+    for (const auto& match : matches)
+    {
+      res.emplace_back(s.substr(match.begin(), match.length()));
+    }
+  }
+
+  return mk_array_value(std::move(res));
+}
+
+
+void evaluator::visit(const regex_strings& n)
+{
+  if (n.has_compiled())
+  {
+    // Fast path: pattern was pre-compiled at parse time.
+    // operand(0) is the value; operand(1) is the pattern literal (ignored here).
+    any_value val = eval(n.operand(0));
+    const managed_string_view* sv = std::get_if<managed_string_view>(&val);
+
+    if (sv != nullptr)
+    {
+      CXX_LIKELY;
+      calcres = &all_regex_strings(*sv, n.compiled());
+      return;
+    }
+
+    calcres = nullptr; // returns null instead of an empty list, or maybe monostate?
+    return;
+  }
+
+  // Slow path: dynamic pattern — compile at evaluation time.
+  any_value lhs = eval(n.operand(0));
+  any_value rhs = eval(n.operand(1));
+  const managed_string_view *subject = std::get_if<managed_string_view>(&lhs);
+  const managed_string_view *pattern = std::get_if<managed_string_view>(&rhs);
+
+  if (pattern == nullptr || subject == nullptr)
+  {
+    calcres = false;
+    return;
+  }
+
+  boost::regex rgx(pattern->data(), pattern->size());
+  calcres = &all_regex_strings(*subject, rgx);
+}
 #endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
 
 void evaluator::visit(const membership &n) {
@@ -3126,7 +3212,7 @@ any_value eval_path(const managed_string_view &path, const json::object *obj) {
       return jsonlogic::to_value(pos->value());
 
     if (std::size_t pos = path.find('.'); pos != json::string::npos) {
-      managed_string_view selector = path.substr(0, pos);
+      managed_string_view selector = path.substr(std::size_t(0), pos);
       managed_string_view suffix = path.substr(pos + 1);
 
       return eval_path(suffix, obj->at(selector).if_object());

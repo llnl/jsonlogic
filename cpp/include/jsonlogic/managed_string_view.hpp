@@ -36,8 +36,8 @@ namespace jsonlogic
       {}
 
       template <class ForwardIterator>
-      managed_string_view(ForwardIterator beg, std::size_t len)
-      : holder(std::make_shared<std::string>(beg, len)), base(to_string_view(*this))
+      managed_string_view(ForwardIterator beg, std::size_t cnt)
+      : holder(std::make_shared<std::string>(beg, cnt)), base(to_string_view(*this))
       {}
 
 
@@ -52,6 +52,11 @@ namespace jsonlogic
       managed_string_view substr(size_type ofs = 0, size_type cnt = base::npos) const
       {
         return { holder(*this), base::substr(ofs, cnt) };
+      }
+
+      managed_string_view substr(const char* beg, std::size_t cnt = base::npos) const
+      {
+        return substr(std::distance(&this->at(0), beg), cnt);
       }
 
       std::string_view view() const { return *this; }

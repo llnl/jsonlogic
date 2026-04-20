@@ -1,0 +1,1 @@
+{"rule":{"regex_strings":[{"var":"s"},"howdy"]},"data":{"s":"hello world"},"expected":[],"description":"regex: no match"}
