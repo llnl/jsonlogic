@@ -411,11 +411,25 @@ struct regex_match : oper_n<2> {
   // the pattern arg is a string literal). Absent = compile at eval time.
   void set_compiled(std::string_view pattern);
   bool has_compiled() const { return compiled_pattern.has_value(); }
-  const boost::regex &compiled() const { return *compiled_pattern; }
+  const boost::regex& compiled() const { return *compiled_pattern; }
 
 private:
   std::optional<boost::regex> compiled_pattern;
 };
+
+struct regex_strings : oper_n<2> {
+  void accept(visitor &) const final;
+
+  // Pre-compile the pattern at parse time (called by mk_regex_opt when
+  // the pattern arg is a string literal). Absent = compile at eval time.
+  void set_compiled(std::string_view pattern);
+  bool has_compiled() const { return compiled_pattern.has_value(); }
+  const boost::regex& compiled() const { return *compiled_pattern; }
+
+private:
+  std::optional<boost::regex> compiled_pattern;
+};
+
 #endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
 
 // visitor
@@ -477,6 +491,7 @@ struct visitor {
 #if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
   // extensions
   virtual void visit(const regex_match &) = 0;
+  virtual void visit(const regex_strings &) = 0;
 #endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
 
 #if ENABLE_OPTIMIZATIONS
@@ -566,6 +581,7 @@ struct generic_dispatcher : visitor {
 #if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
   // extensions
   void visit(const regex_match &n) final { res = apply(n, &n); }
+  void visit(const regex_strings &n) final { res = apply(n, &n); }
 #endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
 
 #if ENABLE_OPTIMIZATIONS

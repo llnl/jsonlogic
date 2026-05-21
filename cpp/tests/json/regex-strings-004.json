@@ -1,0 +1,1 @@
+{"rule":{"regex_strings":[{"var":"s"},"(a.*?a)"]},"data":{"s":"aaaaa"},"expected":["aa","aa"],"description":"regex: find multiple a.*a matches"}

@@ -1,0 +1,1 @@
+{"rule":{"regex_strings":[{"var":"s"},"hello"]},"data":{"s":"hello world"},"expected":["hello"],"description":"regex: find hello match succeeds"}
