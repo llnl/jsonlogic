@@ -8,6 +8,11 @@
 #include <unordered_set>
 #include <vector>
 
+#if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
+#include <boost/regex.hpp>
+#include <optional>
+#endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
+
 #include "cxx-compat.hpp"
 
 namespace jsonlogic {
@@ -233,6 +238,7 @@ struct merge : oper {
   void accept(visitor &) const final;
 };
 
+
 // data access
 struct var : oper {
   enum { computed = -1 };
@@ -401,9 +407,33 @@ struct error : expr {
 // jsonlogic extensions
 
 #if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
-#include <boost/regex.hpp>
-#include <optional>
 
+/// array selection operator
+/// \details 
+///   handles the following json logic expression
+///     { "select": [ array, indices ] }
+///   where array refers to an array
+///   and indices refers to one or more indices (convertible to integer expressions), starting at 0.
+///   if indices is a value, select returns a value.
+///     example: 
+///       { "select": [ [1, "two", 3], 1 ] } -> "two"
+///   if indices is an array, select returns an array.
+///     examples: 
+///       { "select": [ [1, "two", 3], [1] ] } -> ["two"]
+///       { "select": [ [1, "two", 3], [0,2] ] } -> [1, 3]
+///   if any index is out of bounds the evaluation produces a null
+///     examples: 
+///       { "select": [ [1, "two", 3], 3 ] } -> null
+///       { "select": [ [1, "two", 3], [1,3,2] ] } -> ["two",null,3]
+struct select : oper {
+  void accept(visitor &) const final;
+};
+
+/// checks if a string matches a given regex.
+/// \details
+///   if the regex pattern is known at rule creation time it is compiled
+///   at that time.
+///   otherwise, the pattern is compiled at evaluation time.
 struct regex_match : oper_n<2> {
   void accept(visitor &) const final;
 
@@ -417,6 +447,11 @@ private:
   std::optional<boost::regex> compiled_pattern;
 };
 
+/// returns an array of matching strings, or an empty array if no strings matched.
+/// \details
+///   if the regex pattern is known at rule creation time it is compiled
+///   at that time.
+///   otherwise, the pattern is compiled at evaluation time.
 struct regex_strings : oper_n<2> {
   void accept(visitor &) const final;
 
@@ -490,6 +525,7 @@ struct visitor {
 
 #if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
   // extensions
+  virtual void visit(const select &) = 0;
   virtual void visit(const regex_match &) = 0;
   virtual void visit(const regex_strings &) = 0;
 #endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
@@ -580,6 +616,7 @@ struct generic_dispatcher : visitor {
 
 #if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
   // extensions
+  void visit(const select &n) final { res = apply(n, &n); }
   void visit(const regex_match &n) final { res = apply(n, &n); }
   void visit(const regex_strings &n) final { res = apply(n, &n); }
 #endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
