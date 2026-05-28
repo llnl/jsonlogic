@@ -928,7 +928,7 @@ any_expr translate_internal(const json::value &n, variable_map &varmap) {
 
   case json::kind::string: {
     const json::string &str = n.get_string();
-    res = &mk_value<string_value>(managed_string_view(str.begin(), str.size()));
+    res = &mk_value<string_value>(std::string(str.begin(), str.size()));
     break;
   }
 
@@ -1017,8 +1017,8 @@ any_value to_value(const json::value &n) {
 
   switch (n.kind()) {
   case json::kind::string: {
-    const json::string &str = n.get_string(); // \todo this may be unsafe..
-    res = to_value(managed_string_view(&*str.begin(), str.size()));
+    const json::string &str = n.get_string();
+    res = to_value(std::string(str.begin(), str.size()));
     break;
   }
 
@@ -1184,7 +1184,7 @@ inline managed_string_view to_concrete(Val v, const std::string_view &) {
 inline managed_string_view to_concrete(bool v, const std::string_view &) {
   static constexpr const char *bool_string[] = {"false", "true"};
 
-  return managed_string_view(std::string_view(bool_string[v]));
+  return managed_string_view(std::string_view(bool_string[v]), managed_string_view::no_lifetime_management{});
 }
 CXX_MAYBE_UNUSED inline managed_string_view
 to_concrete(const managed_string_view &s, const std::string_view &) {
@@ -1192,7 +1192,7 @@ to_concrete(const managed_string_view &s, const std::string_view &) {
 }
 inline managed_string_view to_concrete(std::nullptr_t,
                                        const std::string_view &) {
-  return managed_string_view(std::string_view("null"));
+  return managed_string_view(std::string_view("null"), managed_string_view::no_lifetime_management{});
 }
 /// \}
 
@@ -2792,66 +2792,66 @@ void evaluator::visit(const cat &n) {
 
 #if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
 
-any_value 
+any_value
 elem_at(const array_value::container_type& elems, std::uint64_t idx)
 {
-  return elems.at(idx);  
+  return elems.at(idx);
 }
 
-any_value 
+any_value
 elem_at(const array_value::container_type& elems, any_value idxobj)
 {
   try
   {
-    return elem_at(elems, unpack_value<std::uint64_t>(idxobj));    
-  } 
+    return elem_at(elems, unpack_value<std::uint64_t>(idxobj));
+  }
   catch (const std::out_of_range&) {}
   catch (const internal_coercion_error&) {}
-  
+
   return nullptr;
 }
 
-void evaluator::visit(const select& n) 
+void evaluator::visit(const select& n)
 {
   using selector_fn = std::function<any_value(array_value const *)>;
-  
+
   any_value lhs = eval(n.operand(0));
   any_value rhs = eval(n.operand(1));
-  
-  auto subset_selector = 
+
+  auto subset_selector =
       [](array_value const* index_arr) -> selector_fn
       {
-        return 
+        return
             [index_arr]
             (array_value const* arr) -> any_value
             {
               const array_value::container_type& indices = index_arr->value();
               const array_value::container_type& elems   = arr->value();
               array_value::container_type res;
-              
-              res.reserve(indices.size());              
+
+              res.reserve(indices.size());
               for (const any_value& idxobj : index_arr->value())
                 res.emplace_back(elem_at(elems, idxobj));
-              
+
               return new array_value(std::move(res));
             };
       };
-  
-  auto index_selector = 
+
+  auto index_selector =
       [&rhs]() -> selector_fn
       {
-        return 
+        return
             [&rhs]
             (array_value const* arr) -> any_value
             {
               return elem_at(arr->value(), rhs);
             };
       };
-  
-  selector_fn selector = with_type<array_value const *>(rhs, subset_selector, index_selector);  
+
+  selector_fn selector = with_type<array_value const *>(rhs, subset_selector, index_selector);
   auto        selector_throws = []() -> any_value { throw_type_error(); };
-  
-  calcres = with_type<array_value const *>(lhs, selector, selector_throws);  
+
+  calcres = with_type<array_value const *>(lhs, selector, selector_throws);
 }
 
 
@@ -2891,11 +2891,15 @@ all_regex_strings(const managed_string_view& s, const boost::regex& pattern)
 
   if (boost::regex_search(s.begin(), s.end(), matches, pattern))
   {
-    // Use a range-based for loop to iterate through all matches
-    for (const auto& match : matches)
-    {
-      res.emplace_back(s.substr(match.begin(), match.length()));
-    }
+    res.reserve(matches.size());
+
+    std::transform( matches.begin(), matches.end(),
+                    std::back_inserter(res),
+                    [&s](const auto& match) -> managed_string_view
+                    {
+                      return s.substr(match.begin(), match.length());
+                    }
+                  );
   }
 
   return mk_array_value(std::move(res));
@@ -3026,9 +3030,9 @@ void evaluator::visit(const reduce &n) {
                            sequence_reduction{expr, *calclogger});
   };
 
-  auto mkInvalid = []() -> any_value { return nullptr; };
+  auto null_return = []() -> any_value { return nullptr; };
 
-  calcres = with_type<array_value const *>(arr, op, mkInvalid);
+  calcres = with_type<array_value const *>(arr, op, null_return);
 }
 
 array_value const *empty_array_value() { return &mk_array_value(); }

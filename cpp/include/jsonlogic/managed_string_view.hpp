@@ -12,6 +12,8 @@ namespace jsonlogic
 
   struct managed_string_view : private shared_string_ptr, public std::string_view
   {
+      struct no_lifetime_management {};
+
       static
       std::string_view to_string_view(shared_string_ptr p) { return *p; }
 
@@ -25,30 +27,45 @@ namespace jsonlogic
       managed_string_view& operator=(const managed_string_view&) = default;
       managed_string_view& operator=(managed_string_view&&)      = default;
 
+      /// constructs a managed_string_view with a fresh shared string
       explicit
       managed_string_view(std::string_view view)
       : holder(std::make_shared<std::string>(view.begin(), view.end())), base(to_string_view(*this))
       {}
 
-      // explicit
+      /// constructs a managed_string_view object without managing the
+      /// life time of an underlying string.
+      /// \details
+      ///   In this case the caller needs to guarantee that the view's
+      ///   underlying string outlives the view.
+      ///   One use case are string constants in jsonlogic, such as "true", "null"
+      managed_string_view(std::string_view view, no_lifetime_management)
+      : holder(nullptr), base(view)
+      {}
+
+      /// constructs a managed_string_view from a shared string.
+      /// \param string_ptr the shared string pointer
+      managed_string_view(shared_string_ptr string_ptr)
+      : holder(std::move(string_ptr)), base()
+      {
+        holder& this_string_ptr = static_cast<holder&>(*this);
+
+        if (this_string_ptr != nullptr)
+          static_cast<base&>(*this) = std::string_view(*this_string_ptr);
+      }
+
+      /// creates a new managed_string_view from \p s.
+      // implicit
       managed_string_view(std::string&& s)
       : holder(std::make_shared<std::string>(std::move(s))), base(to_string_view(*this))
       {}
 
-      template <class ForwardIterator>
-      managed_string_view(ForwardIterator beg, std::size_t cnt)
-      : holder(std::make_shared<std::string>(beg, cnt)), base(to_string_view(*this))
-      {}
-
-
     private:
-
       managed_string_view(holder string_ptr, std::string_view view)
       : holder(std::move(string_ptr)), base(view)
       {}
 
     public:
-
       managed_string_view substr(size_type ofs = 0, size_type cnt = base::npos) const
       {
         return { holder(*this), base::substr(ofs, cnt) };
