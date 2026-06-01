@@ -10,12 +10,6 @@
 #define WITH_JSONLOGIC_CUSTOM_EXTENSIONS 1
 #endif /* !defined(WITH_JSONLOGIC_CUSTOM_EXTENSIONS) */
 
-// TODO: evaluate whether these extension guards are still necessary given
-// that Boost is already a required dependency for boost::json.
-#if !defined(WITH_JSON_LOGIC_CPP_EXTENSIONS)
-#define WITH_JSON_LOGIC_CPP_EXTENSIONS WITH_JSONLOGIC_EXTENSIONS
-#endif /* !defined(WITH_JSON_LOGIC_CPP_EXTENSIONS) */
-
 #if !defined(ENABLE_OPTIMIZATIONS)
 // enables experimental optimizations
 #define ENABLE_OPTIMIZATIONS 1

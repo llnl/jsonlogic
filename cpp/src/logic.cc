@@ -14,10 +14,6 @@
 #include <span>
 #include <string>
 
-#if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
-#include <boost/regex.hpp>
-#endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
-
 // 3rd party headers
 #include <boost/json.hpp>
 
@@ -574,6 +570,8 @@ void array_value::accept(visitor &v) const { v.visit(*this); }
 void error::accept(visitor &v) const { v.visit(*this); }
 
 #if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
+void select::accept(visitor &v) const { v.visit(*this); }
+
 boost::regex compile_regex(std::string_view pattern)
 {
   return boost::regex( pattern.data(), pattern.size(),
@@ -672,6 +670,7 @@ struct forwarding_visitor : visitor {
 
 #if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
   // extensions
+  void visit(const select &n) override { visit(up_cast<oper>(n)); }
   void visit(const regex_match &n) override { visit(up_cast<oper>(n)); }
   void visit(const regex_strings &n) override { visit(up_cast<oper>(n)); }
 #endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
@@ -897,6 +896,7 @@ any_expr translate_internal(const json::value &n, variable_map &varmap) {
       {"missing_some", &mk_missing<missing_some>},
 #if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
       /// extensions
+      {"select", &mk_operator<select>},
       {"regex", &mk_regex_opt},
       {"regex_strings", &mk_regex_strings_opt},
 #endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
@@ -928,7 +928,7 @@ any_expr translate_internal(const json::value &n, variable_map &varmap) {
 
   case json::kind::string: {
     const json::string &str = n.get_string();
-    res = &mk_value<string_value>(managed_string_view(str.begin(), str.size()));
+    res = &mk_value<string_value>(std::string(str.begin(), str.size()));
     break;
   }
 
@@ -1017,8 +1017,8 @@ any_value to_value(const json::value &n) {
 
   switch (n.kind()) {
   case json::kind::string: {
-    const json::string &str = n.get_string(); // \todo this may be unsafe..
-    res = to_value(managed_string_view(&*str.begin(), str.size()));
+    const json::string &str = n.get_string();
+    res = to_value(std::string(str.begin(), str.size()));
     break;
   }
 
@@ -1077,14 +1077,15 @@ namespace {
 struct internal_coercion_error {};
 struct not_int64_error : internal_coercion_error {};
 struct not_uint64_error : internal_coercion_error {};
+struct not_real_error : internal_coercion_error {};
 struct unpacked_array_req : internal_coercion_error {};
 
-template <class T> T from_string(std::string_view str, T el) {
+template <class ConversionError, class T> T from_string(std::string_view str, T el) {
   auto [ptr, err] = std::from_chars(str.data(), str.data() + str.size(), el);
 
   if (err != std::errc{}) {
     CXX_UNLIKELY;
-    throw std::runtime_error{"logic.cc: in to_concrete(string_view, int64_t)"};
+    throw ConversionError{};
   }
 
   return el;
@@ -1098,7 +1099,7 @@ CXX_MAYBE_UNUSED inline std::int64_t to_concrete(std::int64_t v,
 }
 inline std::int64_t to_concrete(const managed_string_view &str,
                                 const std::int64_t &el) {
-  return from_string(str, el);
+  return from_string<not_int64_error>(str, el);
 }
 inline std::int64_t to_concrete(double v, const std::int64_t &) {
   return static_cast<std::int64_t>(v);
@@ -1128,9 +1129,10 @@ CXX_MAYBE_UNUSED inline std::uint64_t to_concrete(std::uint64_t v,
 }
 inline std::uint64_t to_concrete(const managed_string_view &str,
                                  const std::uint64_t &el) {
-  return from_string(str, el);
+  return from_string<not_uint64_error>(str, el);
 }
 inline std::uint64_t to_concrete(double v, const std::uint64_t &) {
+  // \todo add bounds checking
   return static_cast<std::uint64_t>(v);
 }
 inline std::uint64_t to_concrete(bool v, const std::uint64_t &) {
@@ -1153,7 +1155,7 @@ inline std::uint64_t to_concrete(std::int64_t v, const std::uint64_t &) {
 /// conversion to double
 /// \{
 inline double to_concrete(const managed_string_view &str, const double &el) {
-  return from_string(str, el);
+  return from_string<not_real_error>(str, el);
 }
 inline double to_concrete(std::int64_t v, const double &) {
   return static_cast<double>(v);
@@ -1182,7 +1184,7 @@ inline managed_string_view to_concrete(Val v, const std::string_view &) {
 inline managed_string_view to_concrete(bool v, const std::string_view &) {
   static constexpr const char *bool_string[] = {"false", "true"};
 
-  return managed_string_view(std::string_view(bool_string[v]));
+  return managed_string_view(std::string_view(bool_string[v]), managed_string_view::no_lifetime_management{});
 }
 CXX_MAYBE_UNUSED inline managed_string_view
 to_concrete(const managed_string_view &s, const std::string_view &) {
@@ -1190,7 +1192,7 @@ to_concrete(const managed_string_view &s, const std::string_view &) {
 }
 inline managed_string_view to_concrete(std::nullptr_t,
                                        const std::string_view &) {
-  return managed_string_view(std::string_view("null"));
+  return managed_string_view(std::string_view("null"), managed_string_view::no_lifetime_management{});
 }
 /// \}
 
@@ -1219,27 +1221,6 @@ inline bool to_concrete(array_value const *arr, const bool &) {
 
 } // namespace
 
-/*
-template <typename T, typename U, typename = void>
-struct to_concrete_nostrings : std::false_type {};
-
-template <typename T, typename U>
-struct to_concrete_nostrings<T, U,
-std::void_t<decltype(to_concrete(std::declval<T>(), std::declval<const U&>()))
->> : std::true_type {};
-
-//~ template< class T, class U> inline constexpr bool to_concrete_nostrings_v =
-          //~ to_concrete_nostrings<T, U>::value;
-
-template <class T, class U>
-U to_concrete_(T&& v, const U& u, string_table& strings)
-{
-  if constexpr (to_concrete_nostrings<T, U>::value)
-    return to_concrete(std::forward<T>(v), u);
-  else
-    return to_concrete(std::forward<T>(v), u, strings);
-}
-*/
 
 struct comparison_operator_base {
   enum : bool {
@@ -1259,13 +1240,7 @@ template <class T> T to_calc_type(const T *val) { return *val; }
 const managed_string_view &to_calc_type(const managed_string_view *val) {
   return *val;
 }
-/*
-std::nullptr_t
-to_calc_type(std::nullptr_t el)
-{
-  return el;
-}
-*/
+
 variant_span to_calc_type(array_value const *n) { return element_range(n); }
 
 /// \brief a strict equality operator operates on operands of the same
@@ -1842,15 +1817,6 @@ template <class value_t> struct unpacker {
   }
 };
 
-/*
-template <class T>
-T unpack_value(const expr &expr, string_table& strings) {
-  unpacker<T> unpack{strings};
-
-  expr.accept(unpack);
-  return std::move(unpack).result();
-}
-*/
 
 template <class T> T unpack_value(any_value el) {
   return std::visit(unpacker<T>{}, el);
@@ -2524,6 +2490,7 @@ struct evaluator : forwarding_visitor {
   void visit(const error &) final;
 
 #if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
+  void visit(const select &) final;
   void visit(const regex_match &) final;
   void visit(const regex_strings &) final;
 #endif /* WITH_JSONLOGIC_CUSTOM_EXTENSIONS */
@@ -2566,7 +2533,7 @@ private:
   template <class binary_op_t> void binary(const oper &n, binary_op_t binop);
 
   /// evaluates and unpacks n[argpos] to a fundamental value_base
-  std::int64_t unpack_optional_int_arg(const oper &n, int argpos,
+  std::int64_t unpack_optional_int_arg(const oper &n, std::size_t argpos,
                                        std::int64_t defaultVal);
 
   /// auxiliary missing method
@@ -2636,9 +2603,9 @@ private:
   variant_logger &logger;
 };
 
-std::int64_t evaluator::unpack_optional_int_arg(const oper &n, int argpos,
+std::int64_t evaluator::unpack_optional_int_arg(const oper &n, std::size_t argpos,
                                                 std::int64_t defaultVal) {
-  if (std::size_t(argpos) >= n.size()) {
+  if (argpos >= n.size()) {
     CXX_UNLIKELY;
     return defaultVal;
   }
@@ -2824,6 +2791,70 @@ void evaluator::visit(const cat &n) {
 }
 
 #if WITH_JSONLOGIC_CUSTOM_EXTENSIONS
+
+any_value
+elem_at(const array_value::container_type& elems, std::uint64_t idx)
+{
+  return elems.at(idx);
+}
+
+any_value
+elem_at(const array_value::container_type& elems, any_value idxobj)
+{
+  try
+  {
+    return elem_at(elems, unpack_value<std::uint64_t>(idxobj));
+  }
+  catch (const std::out_of_range&) {}
+  catch (const internal_coercion_error&) {}
+
+  return nullptr;
+}
+
+void evaluator::visit(const select& n)
+{
+  using selector_fn = std::function<any_value(array_value const *)>;
+
+  any_value lhs = eval(n.operand(0));
+  any_value rhs = eval(n.operand(1));
+
+  auto subset_selector =
+      [](array_value const* index_arr) -> selector_fn
+      {
+        return
+            [index_arr]
+            (array_value const* arr) -> any_value
+            {
+              const array_value::container_type& indices = index_arr->value();
+              const array_value::container_type& elems   = arr->value();
+              array_value::container_type res;
+
+              res.reserve(indices.size());
+              for (const any_value& idxobj : index_arr->value())
+                res.emplace_back(elem_at(elems, idxobj));
+
+              return new array_value(std::move(res));
+            };
+      };
+
+  auto index_selector =
+      [&rhs]() -> selector_fn
+      {
+        return
+            [&rhs]
+            (array_value const* arr) -> any_value
+            {
+              return elem_at(arr->value(), rhs);
+            };
+      };
+
+  selector_fn selector = with_type<array_value const *>(rhs, subset_selector, index_selector);
+  auto        selector_throws = []() -> any_value { throw_type_error(); };
+
+  calcres = with_type<array_value const *>(lhs, selector, selector_throws);
+}
+
+
 void evaluator::visit(const regex_match &n) {
   if (n.has_compiled()) {
     // Fast path: pattern was pre-compiled at parse time.
@@ -2860,13 +2891,15 @@ all_regex_strings(const managed_string_view& s, const boost::regex& pattern)
 
   if (boost::regex_search(s.begin(), s.end(), matches, pattern))
   {
-    std::cerr << matches.size() << std::endl;
+    res.reserve(matches.size());
 
-    // Use a range-based for loop to iterate through all matches
-    for (const auto& match : matches)
-    {
-      res.emplace_back(s.substr(match.begin(), match.length()));
-    }
+    std::transform( matches.begin(), matches.end(),
+                    std::back_inserter(res),
+                    [&s](const auto& match) -> managed_string_view
+                    {
+                      return s.substr(match.begin(), match.length());
+                    }
+                  );
   }
 
   return mk_array_value(std::move(res));
@@ -2997,9 +3030,9 @@ void evaluator::visit(const reduce &n) {
                            sequence_reduction{expr, *calclogger});
   };
 
-  auto mkInvalid = []() -> any_value { return nullptr; };
+  auto null_return = []() -> any_value { return nullptr; };
 
-  calcres = with_type<array_value const *>(arr, op, mkInvalid);
+  calcres = with_type<array_value const *>(arr, op, null_return);
 }
 
 array_value const *empty_array_value() { return &mk_array_value(); }
@@ -3026,7 +3059,7 @@ void evaluator::visit(const map &n) {
 void evaluator::visit(const filter &n) {
   any_value arr = eval(n.operand(0));
   auto filter = [&n, &arr, calclogger = &this->logger](
-                    array_value const *v) -> array_value const * {
+                    array_value const *v) -> array_value const* {
     variant_span spn = element_range(v);
     expr &expr = n.operand(1);
     std::vector<any_value> filtered_elements;
