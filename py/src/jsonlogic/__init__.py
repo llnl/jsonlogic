@@ -136,4 +136,7 @@ class Expression(Operand):
 #     """Type representing any JSONLogic type"""
 
 
-__all__ = ["Operation", "Operand", "Literal", "Variable", "Expression"]
+# imported last: functions.py depends on the classes defined above.
+from .functions import ifelse  # pylint: disable=wrong-import-position
+
+__all__ = ["Operation", "Operand", "Literal", "Variable", "Expression", "ifelse"]

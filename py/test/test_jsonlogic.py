@@ -108,6 +108,21 @@ def test_eq_add_mul_truediv_floordiv(_i, _f):
         assert_op(t, d)
 
 
+def test_ifelse(_i):
+    d = {_i.getname(k): k for k in _i}
+    e = jl.ifelse(_i[1] < _i[2], _i[3], "no")
+    assert e._prepare() == {
+        "if": [{"<": [{"var": "var1"}, {"var": "var2"}]}, {"var": "var3"}, "no"]
+    }
+    assert jsonLogic(e._prepare(), d) == 3
+    assert jsonLogic(jl.ifelse(_i[1] > _i[2], _i[3], "no")._prepare(), d) == "no"
+    # literal condition
+    assert jl.ifelse(True, 1, 2)._prepare() == {"if": [True, 1, 2]}
+    # nested
+    e = jl.ifelse(_i[1] > _i[2], "a", jl.ifelse(_i[4] == 4, "b", "c"))
+    assert jsonLogic(e._prepare(), d) == "b"
+
+
 def test_bad_args():
     with pytest.raises(JsonLogicArgumentError):
         o = jl.Operation("foo", 1)

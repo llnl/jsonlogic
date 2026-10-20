@@ -63,6 +63,10 @@ _jl_regex = Operation("regex", 2)
 # string and array concatenation
 _jl_cat = Operation("cat", None)
 
+# operations exposed as free functions (see functions.py), not as Operand methods,
+# so they are intentionally absent from jl_operations.
+jl_if = Operation("if", 3)
+
 jl_operations: dict[str, Operation] = {
     "__lt__": _jl_lt,
     "__le__": _jl_le,
